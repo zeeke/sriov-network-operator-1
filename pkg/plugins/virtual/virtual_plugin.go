@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/glog"
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/fswrap"
 	plugin "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 )
@@ -106,7 +107,7 @@ func (p *VirtualPlugin) Apply() error {
 			return nil
 		}
 	}
-	exit, err := utils.Chroot("/host")
+	exit, err := fswrap.Chroot("/host")
 	if err != nil {
 		return err
 	}

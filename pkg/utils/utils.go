@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -24,6 +22,7 @@ import (
 	dputils "github.com/k8snetworkplumbingwg/sriov-network-device-plugin/pkg/utils"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/fswrap"
 )
 
 const (
@@ -379,12 +378,12 @@ func setSriovNumVfs(pciAddr string, numVfs int) error {
 	glog.V(2).Infof("setSriovNumVfs(): set NumVfs for device %s", pciAddr)
 	numVfsFilePath := filepath.Join(sysBusPciDevices, pciAddr, numVfsFile)
 	bs := []byte(strconv.Itoa(numVfs))
-	err := ioutil.WriteFile(numVfsFilePath, []byte("0"), os.ModeAppend)
+	err := fswrap.WriteFile(numVfsFilePath, []byte("0"), os.ModeAppend)
 	if err != nil {
 		glog.Warningf("setSriovNumVfs(): fail to reset NumVfs file %s", numVfsFilePath)
 		return err
 	}
-	err = ioutil.WriteFile(numVfsFilePath, bs, os.ModeAppend)
+	err = fswrap.WriteFile(numVfsFilePath, bs, os.ModeAppend)
 	if err != nil {
 		glog.Warningf("setSriovNumVfs(): fail to set NumVfs file %s", numVfsFilePath)
 		return err
@@ -410,7 +409,7 @@ func setNetdevMTU(pciAddr string, mtu int) error {
 		}
 		mtuFile := "net/" + ifaceName[0] + "/mtu"
 		mtuFilePath := filepath.Join(sysBusPciDevices, pciAddr, mtuFile)
-		return ioutil.WriteFile(mtuFilePath, []byte(strconv.Itoa(mtu)), os.ModeAppend)
+		return fswrap.WriteFile(mtuFilePath, []byte(strconv.Itoa(mtu)), os.ModeAppend)
 	}, backoff.WithMaxRetries(b, 10))
 	if err != nil {
 		glog.Warningf("setNetdevMTU(): fail to write mtu file after retrying: %v", err)
@@ -454,7 +453,7 @@ func getNetdevMTU(pciAddr string) int {
 	}
 	mtuFile := "net/" + ifaceName + "/mtu"
 	mtuFilePath := filepath.Join(sysBusPciDevices, pciAddr, mtuFile)
-	data, err := ioutil.ReadFile(mtuFilePath)
+	data, err := fswrap.ReadFile(mtuFilePath)
 	if err != nil {
 		glog.Warningf("getNetdevMTU(): fail to read mtu file %s", mtuFilePath)
 		return 0
@@ -470,7 +469,7 @@ func getNetdevMTU(pciAddr string) int {
 func getNetDevMac(ifaceName string) string {
 	glog.V(2).Infof("getNetDevMac(): get Mac for device %s", ifaceName)
 	macFilePath := filepath.Join(sysClassNet, ifaceName, "address")
-	data, err := ioutil.ReadFile(macFilePath)
+	data, err := fswrap.ReadFile(macFilePath)
 	if err != nil {
 		glog.Warningf("getNetDevMac(): fail to read Mac file %s", macFilePath)
 		return ""
@@ -482,7 +481,7 @@ func getNetDevMac(ifaceName string) string {
 func getNetDevLinkSpeed(ifaceName string) string {
 	glog.V(2).Infof("getNetDevLinkSpeed(): get LinkSpeed for device %s", ifaceName)
 	speedFilePath := filepath.Join(sysClassNet, ifaceName, "speed")
-	data, err := ioutil.ReadFile(speedFilePath)
+	data, err := fswrap.ReadFile(speedFilePath)
 	if err != nil {
 		glog.Warningf("getNetDevLinkSpeed(): fail to read Link Speed file %s", speedFilePath)
 		return ""
@@ -560,26 +559,6 @@ func LoadKernelModule(name string, args ...string) error {
 		return err
 	}
 	return nil
-}
-
-func Chroot(path string) (func() error, error) {
-	root, err := os.Open("/")
-	if err != nil {
-		return nil, err
-	}
-
-	if err := syscall.Chroot(path); err != nil {
-		root.Close()
-		return nil, err
-	}
-
-	return func() error {
-		defer root.Close()
-		if err := root.Chdir(); err != nil {
-			return err
-		}
-		return syscall.Chroot(".")
-	}, nil
 }
 
 func vfIsReady(pciAddr string) (netlink.Link, error) {
@@ -690,7 +669,7 @@ func GetNicSriovMode(pciAddress string) (string, error) {
 
 func GetPhysSwitchID(name string) (string, error) {
 	swIDFile := filepath.Join(sysClassNet, name, "phys_switch_id")
-	physSwitchID, err := ioutil.ReadFile(swIDFile)
+	physSwitchID, err := fswrap.ReadFile(swIDFile)
 	if err != nil {
 		return "", err
 	}
@@ -702,7 +681,7 @@ func GetPhysSwitchID(name string) (string, error) {
 
 func GetPhysPortName(name string) (string, error) {
 	devicePortNameFile := filepath.Join(sysClassNet, name, "phys_port_name")
-	physPortName, err := ioutil.ReadFile(devicePortNameFile)
+	physPortName, err := fswrap.ReadFile(devicePortNameFile)
 	if err != nil {
 		return "", err
 	}

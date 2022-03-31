@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -41,6 +40,7 @@ import (
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	snclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned"
 	sninformer "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/informers/externalversions"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/fswrap"
 	plugin "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 )
@@ -67,9 +67,9 @@ type Daemon struct {
 
 	client snclientset.Interface
 	// kubeClient allows interaction with Kubernetes, including the node we are running on.
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 
-	mcClient *mcclientset.Clientset
+	mcClient mcclientset.Interface
 
 	nodeState *sriovnetworkv1.SriovNetworkNodeState
 
@@ -127,8 +127,8 @@ func (w writer) Write(p []byte) (n int, err error) {
 func New(
 	nodeName string,
 	client snclientset.Interface,
-	kubeClient *kubernetes.Clientset,
-	mcClient *mcclientset.Clientset,
+	kubeClient kubernetes.Interface,
+	mcClient mcclientset.Interface,
 	exitCh chan<- error,
 	stopCh <-chan struct{},
 	syncCh <-chan struct{},
@@ -272,11 +272,13 @@ func (dn *Daemon) Run(stopCh <-chan struct{}, exitCh <-chan error) error {
 		case <-stopCh:
 			glog.V(0).Info("Run(): stop daemon")
 			return nil
-		case err := <-exitCh:
+		case err, more := <-exitCh:
 			glog.Warningf("Got an error: %v", err)
-			dn.refreshCh <- Message{
-				syncStatus:    "Failed",
-				lastSyncError: err.Error(),
+			if more {
+				dn.refreshCh <- Message{
+					syncStatus:    "Failed",
+					lastSyncError: err.Error(),
+				}
 			}
 			return err
 		case <-time.After(30 * time.Second):
@@ -637,7 +639,7 @@ func (dn *Daemon) restartDevicePluginPod() error {
 
 func rebootNode() {
 	glog.Infof("rebootNode(): trigger node reboot")
-	exit, err := utils.Chroot("/host")
+	exit, err := fswrap.Chroot("/host")
 	if err != nil {
 		glog.Errorf("rebootNode(): %v", err)
 	}
@@ -950,7 +952,7 @@ func tryCreateSwitchdevUdevRule(nodeState *sriovnetworkv1.SriovNetworkNodeState)
 		}
 	}
 
-	oldContent, err := ioutil.ReadFile(filePath)
+	oldContent, err := fswrap.ReadFile(filePath)
 	// if oldContent = newContent, don't do anything
 	if err == nil && newContent == string(oldContent) {
 		return nil
@@ -963,7 +965,7 @@ func tryCreateSwitchdevUdevRule(nodeState *sriovnetworkv1.SriovNetworkNodeState)
 
 	// if the file does not exist or if oldContent != newContent
 	// write to file and create it if it doesn't exist
-	err = ioutil.WriteFile(filePath, []byte(newContent), 0664)
+	err = fswrap.WriteFile(filePath, []byte(newContent), 0664)
 	if err != nil {
 		glog.Errorf("tryCreateSwitchdevUdevRule(): fail to write file: %v", err)
 		return err
@@ -999,7 +1001,7 @@ func tryCreateNMUdevRule() error {
 	// add NM udev rules for renaming VF rep
 	newContent = newContent + "SUBSYSTEM==\"net\", ACTION==\"add|move\", ATTRS{phys_switch_id}!=\"\", ATTR{phys_port_name}==\"pf*vf*\", ENV{NM_UNMANAGED}=\"1\"\n"
 
-	oldContent, err := ioutil.ReadFile(filePath)
+	oldContent, err := fswrap.ReadFile(filePath)
 	// if oldContent = newContent, don't do anything
 	if err == nil && newContent == string(oldContent) {
 		return nil
@@ -1010,7 +1012,7 @@ func tryCreateNMUdevRule() error {
 		strings.TrimSuffix(newContent, "\n"),
 		filePath)
 
-	err = os.MkdirAll(dirPath, os.ModePerm)
+	err = fswrap.MkdirAll(dirPath, os.ModePerm)
 	if err != nil && !os.IsExist(err) {
 		glog.Errorf("tryCreateNMUdevRule(): failed to create dir %s: %v", dirPath, err)
 		return err
@@ -1018,7 +1020,7 @@ func tryCreateNMUdevRule() error {
 
 	// if the file does not exist or if oldContent != newContent
 	// write to file and create it if it doesn't exist
-	err = ioutil.WriteFile(filePath, []byte(newContent), 0666)
+	err = fswrap.WriteFile(filePath, []byte(newContent), 0666)
 	if err != nil {
 		glog.Errorf("tryCreateNMUdevRule(): fail to write file: %v", err)
 		return err

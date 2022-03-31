@@ -7,7 +7,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/fswrap"
 )
 
 type ServiceManager interface {
@@ -64,7 +64,7 @@ func (sm *serviceManager) EnableService(service *Service) error {
 	}
 
 	// Change root dir
-	exit, err := utils.Chroot(sm.chroot)
+	exit, err := fswrap.Chroot(sm.chroot)
 	if err != nil {
 		return err
 	}
