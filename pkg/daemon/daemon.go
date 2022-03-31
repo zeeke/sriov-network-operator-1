@@ -67,9 +67,9 @@ type Daemon struct {
 
 	client snclientset.Interface
 	// kubeClient allows interaction with Kubernetes, including the node we are running on.
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 
-	mcClient *mcclientset.Clientset
+	mcClient mcclientset.Interface
 
 	nodeState *sriovnetworkv1.SriovNetworkNodeState
 
@@ -113,6 +113,9 @@ const (
 
 var namespace = os.Getenv("NAMESPACE")
 
+// used by test to mock interactions with filesystem
+var filesystemRoot string = ""
+
 // writer implements io.Writer interface as a pass-through for glog.
 type writer struct {
 	logFunc func(args ...interface{})
@@ -127,8 +130,8 @@ func (w writer) Write(p []byte) (n int, err error) {
 func New(
 	nodeName string,
 	client snclientset.Interface,
-	kubeClient *kubernetes.Clientset,
-	mcClient *mcclientset.Clientset,
+	kubeClient kubernetes.Interface,
+	mcClient mcclientset.Interface,
 	exitCh chan<- error,
 	stopCh <-chan struct{},
 	syncCh <-chan struct{},
@@ -273,11 +276,13 @@ func (dn *Daemon) Run(stopCh <-chan struct{}, exitCh <-chan error) error {
 		case <-stopCh:
 			glog.V(0).Info("Run(): stop daemon")
 			return nil
-		case err := <-exitCh:
+		case err, more := <-exitCh:
 			glog.Warningf("Got an error: %v", err)
-			dn.refreshCh <- Message{
-				syncStatus:    "Failed",
-				lastSyncError: err.Error(),
+			if more {
+				dn.refreshCh <- Message{
+					syncStatus:    "Failed",
+					lastSyncError: err.Error(),
+				}
 			}
 			return err
 		case <-time.After(30 * time.Second):
@@ -931,7 +936,7 @@ func tryEnableRdma() (bool, error) {
 	glog.V(2).Infof("tryEnableRdma()")
 	var stdout, stderr bytes.Buffer
 
-	cmd := exec.Command("/bin/bash", rdmaScriptsPath)
+	cmd := exec.Command("/bin/bash", filesystemRoot+rdmaScriptsPath)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -956,7 +961,7 @@ func tryEnableRdma() (bool, error) {
 func tryCreateSwitchdevUdevRule(nodeState *sriovnetworkv1.SriovNetworkNodeState) error {
 	glog.V(2).Infof("tryCreateSwitchdevUdevRule()")
 	var newContent string
-	filePath := "/host/etc/udev/rules.d/20-switchdev.rules"
+	filePath := filesystemRoot + "/host/etc/udev/rules.d/20-switchdev.rules"
 
 	for _, ifaceStatus := range nodeState.Status.Interfaces {
 		if ifaceStatus.EswitchMode == sriovnetworkv1.ESwithModeSwitchDev {
@@ -992,7 +997,7 @@ func tryCreateSwitchdevUdevRule(nodeState *sriovnetworkv1.SriovNetworkNodeState)
 	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("/bin/bash", udevScriptsPath)
+	cmd := exec.Command("/bin/bash", filesystemRoot+udevScriptsPath)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -1013,7 +1018,7 @@ func tryCreateSwitchdevUdevRule(nodeState *sriovnetworkv1.SriovNetworkNodeState)
 
 func tryCreateNMUdevRule() error {
 	glog.V(2).Infof("tryCreateNMUdevRule()")
-	dirPath := "/host/etc/udev/rules.d/"
+	dirPath := filesystemRoot + "/host/etc/udev/rules.d/"
 	filePath := dirPath + "10-nm-unmanaged.rules"
 
 	newContent := fmt.Sprintf("ACTION==\"add|change|move\", ATTRS{device}==\"%s\", ENV{NM_UNMANAGED}=\"1\"\n", strings.Join(sriovnetworkv1.GetSupportedVfIds(), "|"))
