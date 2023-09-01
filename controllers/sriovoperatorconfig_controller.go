@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 
+	"go.uber.org/zap/zapcore"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	machinev1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
@@ -48,6 +50,7 @@ type SriovOperatorConfigReconciler struct {
 	client.Client
 	Scheme           *runtime.Scheme
 	OpenshiftContext *utils.OpenshiftContext
+	lastZapLogLevel  zapcore.LevelEnabler
 }
 
 //+kubebuilder:rbac:groups=sriovnetwork.openshift.io,resources=sriovoperatorconfigs,verbs=get;list;watch;create;update;patch;delete
@@ -135,6 +138,9 @@ func (r *SriovOperatorConfigReconciler) Reconcile(ctx context.Context, req ctrl.
 			return reconcile.Result{}, err
 		}
 	}
+
+	r.syncLogLevel(defaultConfig)
+
 	return reconcile.Result{RequeueAfter: constants.ResyncPeriod}, nil
 }
 
@@ -397,4 +403,31 @@ func (r SriovOperatorConfigReconciler) setLabelInsideObject(ctx context.Context,
 	}
 
 	return nil
+}
+
+func (r *SriovOperatorConfigReconciler) syncLogLevel(cr *sriovnetworkv1.SriovOperatorConfig) {
+
+	var zapLevel zapcore.LevelEnabler
+	switch cr.Spec.LogLevel {
+	case 0:
+		zapLevel = zapcore.WarnLevel
+	case 1:
+		zapLevel = zapcore.InfoLevel
+	case 2:
+		zapLevel = zapcore.DebugLevel
+	}
+
+	if r.lastZapLogLevel == zapLevel {
+		// Avoid recreating the logger if the field hasn't changed
+		return
+	}
+
+	r.lastZapLogLevel = zapLevel
+
+	opts := zap.Options{
+		Development: true,
+		TimeEncoder: zapcore.RFC3339NanoTimeEncoder,
+	}
+
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts), zap.Level(r.lastZapLogLevel)))
 }
