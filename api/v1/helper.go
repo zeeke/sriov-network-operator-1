@@ -280,7 +280,6 @@ func (p *SriovNetworkNodePolicy) Apply(state *SriovNetworkNodeState, equalPriori
 	}
 	for _, iface := range state.Status.Interfaces {
 		if s.Selected(&iface) {
-			log.Info("Update interface", "name:", iface.Name)
 			result := Interface{
 				PciAddress:  iface.PciAddress,
 				Mtu:         p.Spec.Mtu,

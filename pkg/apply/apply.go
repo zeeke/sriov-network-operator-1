@@ -62,7 +62,6 @@ func ApplyObject(ctx context.Context, client k8sclient.Client, obj *uns.Unstruct
 	gvk := obj.GroupVersionKind()
 	// used for logging and errors
 	objDesc := fmt.Sprintf("(%s) %s/%s", gvk.String(), namespace, name)
-	log.Printf("reconciling %s", objDesc)
 
 	if err := IsObjectSupported(obj); err != nil {
 		return errors.Wrapf(err, "object %s unsupported", objDesc)
