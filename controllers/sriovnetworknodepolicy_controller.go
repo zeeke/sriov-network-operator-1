@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -231,16 +232,23 @@ func (r *SriovNetworkNodePolicyReconciler) syncDevicePluginConfigMap(ctx context
 				return fmt.Errorf("couldn't create ConfigMap: %v", err)
 			}
 			logger.Info("Created ConfigMap for", cm.Namespace, cm.Name)
-		} else {
-			return fmt.Errorf("failed to get ConfigMap: %v", err)
+			return nil
 		}
-	} else {
-		logger.Info("ConfigMap already exists, updating")
-		err = r.Update(ctx, cm)
-		if err != nil {
-			return fmt.Errorf("couldn't update ConfigMap: %v", err)
-		}
+
+		return fmt.Errorf("failed to get previous ConfigMap[%s/%s]: %v", cm.Namespace, cm.Name, err)
 	}
+
+	if reflect.DeepEqual(cm.Data, found.Data) {
+		logger.V(2).Info("ConfigMap already exists")
+		return nil
+	}
+
+	logger.Info("ConfigMap already exists, updating")
+	err = r.Update(ctx, cm)
+	if err != nil {
+		return fmt.Errorf("couldn't update ConfigMap[%s/%s]: %v", cm.Namespace, cm.Name, err)
+	}
+
 	return nil
 }
 
