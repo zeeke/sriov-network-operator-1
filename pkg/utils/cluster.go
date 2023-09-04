@@ -9,8 +9,13 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 )
 
 const (
@@ -110,4 +115,12 @@ func openshiftControlPlaneTopologyStatus(c client.Client) (configv1.TopologyMode
 		return "", fmt.Errorf("openshiftControlPlaneTopologyStatus(): getting resource Infrastructure (name: %s) succeeded but object was nil", infraResourceName)
 	}
 	return infra.Status.ControlPlaneTopology, nil
+}
+
+func NodeHasAnnotation(node corev1.Node, annoKey string, value string) bool {
+	// Check if node already contains annotation
+	if anno, ok := node.Annotations[annoKey]; ok && (anno == value) {
+		return true
+	}
+	return false
 }
