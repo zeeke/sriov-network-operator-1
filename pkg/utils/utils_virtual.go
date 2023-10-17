@@ -54,10 +54,13 @@ const (
 	ospMetaDataBaseURL     = "http://169.254.169.254/openstack/2018-08-27"
 	ospHostNetworkDataFile = ospHostMetaDataDir + "/network_data.json"
 	ospHostMetaDataFile    = ospHostMetaDataDir + "/meta_data.json"
-	ospNetworkDataFile     = ospMetaDataDir + "/network_data.json"
-	ospMetaDataFile        = ospMetaDataDir + "/meta_data.json"
 	ospNetworkDataURL      = ospMetaDataBaseURL + "/network_data.json"
 	ospMetaDataURL         = ospMetaDataBaseURL + "/meta_data.json"
+)
+
+var (
+	ospNetworkDataFile = ospMetaDataDir + "/network_data.json"
+	ospMetaDataFile    = ospMetaDataDir + "/meta_data.json"
 )
 
 // OSPMetaDataDevice -- Device structure within meta_data.json
