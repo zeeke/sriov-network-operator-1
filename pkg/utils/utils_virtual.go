@@ -48,7 +48,7 @@ var (
 	}
 )
 
-const (
+var (
 	ospHostMetaDataDir     = "/host/var/config/openstack/2018-08-27"
 	ospMetaDataDir         = "/var/config/openstack/2018-08-27"
 	ospMetaDataBaseURL     = "http://169.254.169.254/openstack/2018-08-27"
