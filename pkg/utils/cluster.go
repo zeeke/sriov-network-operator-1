@@ -145,6 +145,7 @@ func AnnotateNode(node, value string, kubeClient kubernetes.Interface) error {
 	}
 
 	if newNode.Annotations[consts.NodeDrainAnnotation] != value {
+		glog.Infof("annotateNode(): node %s [%s] -> [%s]", node, newNode.Annotations[consts.NodeDrainAnnotation], value)
 		newNode.Annotations[consts.NodeDrainAnnotation] = value
 		newData, err := json.Marshal(newNode)
 		if err != nil {

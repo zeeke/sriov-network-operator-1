@@ -179,6 +179,12 @@ func (dr *DrainReconciler) drainNode(ctx context.Context, node *corev1.Node) err
 		reqLogger.Info("drainNode(): failed to drain node", "error", err)
 		return err
 	}
-	reqLogger.Info("drainNode(): drain complete")
+	reqLogger.Info(fmt.Sprintf("drainNode(): drain complete, annotating node with %s", constants.DrainComplete))
+
+	err = utils.AnnotateNode(node.Name, constants.DrainComplete, dr.Drainer.Client)
+	if err != nil {
+		reqLogger.Error(err, "drainNode(): failed to annotate node")
+	}
+
 	return nil
 }

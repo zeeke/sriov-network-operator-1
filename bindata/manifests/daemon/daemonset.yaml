@@ -16,6 +16,8 @@ spec:
       maxUnavailable: 33%
   template:
     metadata:
+      annotations:
+        target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
       labels:
         app: sriov-network-config-daemon
         component: network

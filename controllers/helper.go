@@ -78,11 +78,11 @@ func (DrainAnnotationPredicate) Update(e event.UpdateEvent) bool {
 	newAnno, hasNewAnno := e.ObjectNew.GetAnnotations()[constants.NodeDrainAnnotation]
 
 	if !hasOldAnno || !hasNewAnno {
-		logger.Info("Update event: can not compare annotations", "node", e.ObjectNew.GetName())
+		//logger.Info("Update event: can not compare annotations", "node", e.ObjectNew.GetName())
 		return false
 	}
 
-	return oldAnno == newAnno
+	return oldAnno != newAnno
 }
 
 func GetImagePullSecrets() []string {

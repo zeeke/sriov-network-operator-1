@@ -570,28 +570,24 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 
 	if reqDrain {
 		if !dn.isNodeDraining() {
-			if !dn.disableDrain && !dn.openshiftContext.IsOpenshiftCluster() {
+
+			if dn.openshiftContext.IsOpenshiftCluster() && !dn.openshiftContext.IsHypershift() {
+				glog.Infof("nodeStateSyncHandler(): pause MCP")
+				if err := dn.pauseMCP(); err != nil {
+					return err
+				}
+			}
+
+			if !dn.disableDrain {
 				glog.Infof("nodeStateSyncHandler(): apply 'Drain_Required' label for node")
 				if err := dn.applyDrainRequired(); err != nil {
 					return err
 				}
-				return nil
-			}
-		}
 
-		if dn.openshiftContext.IsOpenshiftCluster() && !dn.openshiftContext.IsHypershift() {
-			glog.Infof("nodeStateSyncHandler(): pause MCP")
-			if err := dn.pauseMCP(); err != nil {
-				return err
-			}
-		}
-
-		if dn.disableDrain {
-			glog.Info("nodeStateSyncHandler(): disable drain is true skipping drain")
-		} else {
-			glog.Info("nodeStateSyncHandler(): drain node")
-			if err := utils.AnnotateNode(dn.name, consts.DrainRequired, dn.kubeClient); err != nil {
-				return err
+				err := dn.waitForNodeDrained()
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -632,7 +628,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 		glog.Errorf("nodeStateSyncHandler(): fail to restart device plugin pod: %v", err)
 		return err
 	}
-	if dn.isNodeDraining() {
+	if dn.isNodeDrained() {
 		if err := dn.completeDrain(); err != nil {
 			glog.Errorf("nodeStateSyncHandler(): failed to complete draining: %v", err)
 			return err
@@ -672,6 +668,40 @@ func (dn *Daemon) isNodeDraining() bool {
 	}
 
 	return anno == consts.Draining || anno == consts.DrainMcpPaused
+}
+
+func (dn *Daemon) waitForNodeDrained() error {
+
+	backoff := wait.Backoff{
+		Steps:    5,
+		Duration: 10 * time.Second,
+		Factor:   2,
+	}
+
+	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		anno, ok := dn.node.Annotations[consts.NodeDrainAnnotation]
+		if !ok {
+			glog.Errorf("waitForNodeDrained(): node has no %s annotation: %v", dn.node.Name, dn.node.Annotations)
+			return false, nil
+		}
+
+		return anno == consts.DrainComplete, nil
+	})
+	if err != nil {
+		glog.Errorf("waitForNodeDrained(): error while waiting for the draining to complete: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (dn *Daemon) isNodeDrained() bool {
+	anno, ok := dn.node.Annotations[consts.NodeDrainAnnotation]
+	if !ok {
+		return false
+	}
+
+	return anno == consts.DrainComplete
 }
 
 func (dn *Daemon) completeDrain() error {

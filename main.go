@@ -191,9 +191,9 @@ func main() {
 				}
 				glog.Info(fmt.Sprintf("%s pod from Node %s/%s", verbStr, pod.Namespace, pod.Name))
 			},
-			//Out:    writer{glog.Info},
-			//ErrOut: writer{glog.Error},
-			Ctx: context.Background(),
+			Out:    logWriter{ctrl.Log.Info},
+			ErrOut: logWriter{ctrl.Log.Info},
+			Ctx:    context.Background(),
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DrainReconciler")
@@ -312,4 +312,14 @@ func createDefaultOperatorConfig(c client.Client) error {
 		return err
 	}
 	return nil
+}
+
+type logWriter struct {
+	logFunc func(msg string, keysAndValues ...interface{})
+}
+
+// Write passes string(p) into writer's logFunc and always returns len(p)
+func (w logWriter) Write(p []byte) (n int, err error) {
+	w.logFunc(string(p))
+	return len(p), nil
 }

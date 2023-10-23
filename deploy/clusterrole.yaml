@@ -33,6 +33,9 @@ rules:
 - apiGroups: ["config.openshift.io"]
   resources: ["infrastructures"]
   verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/eviction"]
+  verbs: ["create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -48,9 +51,6 @@ rules:
 - apiGroups: ["apps"]
   resources: ["daemonsets"]
   verbs: ["get"]
-- apiGroups: [""]
-  resources: ["pods/eviction"]
-  verbs: ["create"]
 - apiGroups: ["machineconfiguration.openshift.io"]
   resources: ["*"]
   verbs: ["*"]
