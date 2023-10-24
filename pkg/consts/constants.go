@@ -26,9 +26,10 @@ const (
 	NodeDrainAnnotation = "sriovnetwork.openshift.io/state"
 	DrainIdle           = "Idle"
 	DrainRequired       = "Drain_Required"
+	DrainAllowed        = "Drain_Allowed"
 	DrainMcpPaused      = "Draining_MCP_Paused"
 	Draining            = "Draining"
-	DrainComplete       = "DrainComplete"
+	DrainComplete       = "Drain_Complete"
 
 	LinkTypeEthernet   = "ether"
 	LinkTypeInfiniband = "infiniband"

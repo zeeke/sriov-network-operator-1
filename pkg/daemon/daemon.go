@@ -570,6 +570,23 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 
 	if reqDrain {
 		if !dn.isNodeDraining() {
+			if !dn.disableDrain {
+				glog.Infof("nodeStateSyncHandler(): apply 'Drain_Required' label for node")
+				if err := dn.applyDrainRequired(); err != nil {
+					return err
+				}
+				err := dn.waitForDrainAllowed()
+				if err != nil {
+					return err
+				}
+
+				defer func() {
+					err := utils.AnnotateNode(dn.name, consts.DrainComplete, dn.kubeClient)
+					if err != nil {
+						glog.Errorf("nodeStateSyncHandler(): apply 'Drain_Complete' failed: %v", err)
+					}
+				}()
+			}
 
 			if dn.openshiftContext.IsOpenshiftCluster() && !dn.openshiftContext.IsHypershift() {
 				glog.Infof("nodeStateSyncHandler(): pause MCP")
@@ -578,14 +595,11 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 				}
 			}
 
-			if !dn.disableDrain {
-				glog.Infof("nodeStateSyncHandler(): apply 'Drain_Required' label for node")
-				if err := dn.applyDrainRequired(); err != nil {
-					return err
-				}
-
-				err := dn.waitForNodeDrained()
-				if err != nil {
+			if dn.disableDrain {
+				glog.Info("nodeStateSyncHandler(): disable drain is true skipping drain")
+			} else {
+				glog.Info("nodeStateSyncHandler(): drain node")
+				if err := dn.drainNode(); err != nil {
 					return err
 				}
 			}
@@ -670,7 +684,7 @@ func (dn *Daemon) isNodeDraining() bool {
 	return anno == consts.Draining || anno == consts.DrainMcpPaused
 }
 
-func (dn *Daemon) waitForNodeDrained() error {
+func (dn *Daemon) waitForDrainAllowed() error {
 
 	backoff := wait.Backoff{
 		Steps:    5,
@@ -685,7 +699,7 @@ func (dn *Daemon) waitForNodeDrained() error {
 			return false, nil
 		}
 
-		return anno == consts.DrainComplete, nil
+		return anno == consts.DrainAllowed, nil
 	})
 	if err != nil {
 		glog.Errorf("waitForNodeDrained(): error while waiting for the draining to complete: %v", err)
@@ -923,6 +937,43 @@ func (dn *Daemon) pauseMCP() error {
 	}
 
 	return err
+}
+
+func (dn *Daemon) drainNode() error {
+	glog.Info("drainNode(): Update prepared")
+	var err error
+
+	backoff := wait.Backoff{
+		Steps:    5,
+		Duration: 10 * time.Second,
+		Factor:   2,
+	}
+	var lastErr error
+
+	glog.Info("drainNode(): Start draining")
+	if err = wait.ExponentialBackoff(backoff, func() (bool, error) {
+		err := drain.RunCordonOrUncordon(dn.drainer, dn.node, true)
+		if err != nil {
+			lastErr = err
+			glog.Infof("Cordon failed with: %v, retrying", err)
+			return false, nil
+		}
+		err = drain.RunNodeDrain(dn.drainer, dn.name)
+		if err == nil {
+			return true, nil
+		}
+		lastErr = err
+		glog.Infof("Draining failed with: %v, retrying", err)
+		return false, nil
+	}); err != nil {
+		if err == wait.ErrWaitTimeout {
+			glog.Errorf("drainNode(): failed to drain node (%d tries): %v :%v", backoff.Steps, err, lastErr)
+		}
+		glog.Errorf("drainNode(): failed to drain node: %v", err)
+		return err
+	}
+	glog.Info("drainNode(): drain complete")
+	return nil
 }
 
 func tryCreateSwitchdevUdevRule(nodeState *sriovnetworkv1.SriovNetworkNodeState) error {

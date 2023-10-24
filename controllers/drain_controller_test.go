@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"time"
-
 	goctx "context"
 
 	v1 "k8s.io/api/core/v1"
@@ -30,35 +28,41 @@ func createNode(node *v1.Node) {
 var _ = Describe("Drain Controller", func() {
 
 	BeforeEach(func() {
-		node1 := createNodeObj("node1", "Drain_Required")
-		node2 := createNodeObj("node2", "Drain_Required")
+		node1 := createNodeObj("node1", "Idle")
+		node2 := createNodeObj("node2", "Idle")
 		createNode(node1)
 		createNode(node2)
-	})
-	AfterEach(func() {
-		node1 := createNodeObj("node1", "Drain_Required")
-		node2 := createNodeObj("node2", "Drain_Required")
-		err := k8sClient.Delete(goctx.TODO(), node1)
-		Expect(err).NotTo(HaveOccurred())
-		err = k8sClient.Delete(goctx.TODO(), node2)
-		Expect(err).NotTo(HaveOccurred())
+
+		DeferCleanup(func() {
+			err := k8sClient.Delete(goctx.TODO(), node1)
+			Expect(err).NotTo(HaveOccurred())
+			err = k8sClient.Delete(goctx.TODO(), node2)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
-	Context("Parallel nodes draining", func() {
+	FContext("Parallel nodes draining", func() {
 
 		It("Should drain one node", func() {
 			nodeList := &v1.NodeList{}
 			listErr := k8sClient.List(ctx, nodeList)
 			Expect(listErr).NotTo(HaveOccurred())
-			time.Sleep(5 * time.Second)
 
-			drainingNodes := 0
-			for _, node := range nodeList.Items {
-				if utils.NodeHasAnnotation(node, "sriovnetwork.openshift.io/state", "Draining") {
-					drainingNodes++
+			updateDrainAnnotation(k8sClient, &nodeList.Items[0], "Drain_Required")
+			updateDrainAnnotation(k8sClient, &nodeList.Items[1], "Drain_Required")
+
+			Eventually(func() int {
+				listErr := k8sClient.List(ctx, nodeList)
+				Expect(listErr).NotTo(HaveOccurred())
+
+				drainingNodes := 0
+				for _, node := range nodeList.Items {
+					if utils.NodeHasAnnotation(node, "sriovnetwork.openshift.io/state", "Drain_Allowed") {
+						drainingNodes++
+					}
 				}
-			}
-			Expect(drainingNodes).To(Equal(1))
+				return drainingNodes
+			}).Should(Equal(1))
 		})
 	})
 })

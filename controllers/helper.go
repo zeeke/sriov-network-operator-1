@@ -52,7 +52,6 @@ type DrainAnnotationPredicate struct {
 func (DrainAnnotationPredicate) Create(e event.CreateEvent) bool {
 	logger := log.FromContext(context.TODO())
 	if e.Object == nil {
-		logger.Info("Create event: node has no drain annotation", "node", e.Object.GetName())
 		return false
 	}
 
@@ -64,13 +63,10 @@ func (DrainAnnotationPredicate) Create(e event.CreateEvent) bool {
 }
 
 func (DrainAnnotationPredicate) Update(e event.UpdateEvent) bool {
-	logger := log.FromContext(context.TODO())
 	if e.ObjectOld == nil {
-		logger.Info("Update event has no old object to update", "node", e.ObjectOld.GetName())
 		return false
 	}
 	if e.ObjectNew == nil {
-		logger.Info("Update event has no new object for update", "node", e.ObjectNew.GetName())
 		return false
 	}
 
@@ -78,7 +74,6 @@ func (DrainAnnotationPredicate) Update(e event.UpdateEvent) bool {
 	newAnno, hasNewAnno := e.ObjectNew.GetAnnotations()[constants.NodeDrainAnnotation]
 
 	if !hasOldAnno || !hasNewAnno {
-		//logger.Info("Update event: can not compare annotations", "node", e.ObjectNew.GetName())
 		return false
 	}
 

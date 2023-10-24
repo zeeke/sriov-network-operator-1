@@ -21,12 +21,10 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubectl/pkg/drain"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -62,7 +60,7 @@ type DrainReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (dr *DrainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	req.Namespace = namespace
-	reqLogger := log.FromContext(ctx).WithValues("drain", req.NamespacedName)
+	reqLogger := log.FromContext(ctx)
 	reqLogger.Info("Reconciling Drain")
 
 	nodeList := &corev1.NodeList{}
@@ -82,8 +80,7 @@ func (dr *DrainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	drainingNodes := 0
 	for _, node := range nodeList.Items {
-		if utils.NodeHasAnnotation(node, constants.NodeDrainAnnotation, constants.Draining) || utils.NodeHasAnnotation(node, constants.NodeDrainAnnotation, constants.DrainMcpPaused) {
-			dr.drainNode(ctx, &node)
+		if utils.NodeHasAnnotation(node, constants.NodeDrainAnnotation, constants.DrainAllowed) {
 			drainingNodes++
 		}
 	}
@@ -99,9 +96,8 @@ func (dr *DrainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			continue
 		}
 		if drainingNodes < maxParallelNodeConfiguration {
-			reqLogger.Info("Start draining node", "node", node.Name)
-			patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, constants.NodeDrainAnnotation, constants.Draining))
-			err = dr.Client.Patch(context.TODO(), &node, client.RawPatch(types.StrategicMergePatchType, patch))
+			reqLogger.Info("Allow draining node", "node", node.Name)
+			err = updateDrainAnnotation(dr.Client, &node, constants.DrainAllowed)
 			if err != nil {
 				reqLogger.Error(err, "Failed to patch node annotations")
 				return reconcile.Result{}, err
@@ -145,46 +141,53 @@ func (dr *DrainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(dr)
 }
 
-func (dr *DrainReconciler) drainNode(ctx context.Context, node *corev1.Node) error {
-	reqLogger := log.FromContext(ctx).WithValues("drain node", node.Name)
-	reqLogger.Info("drainNode(): Node drain requested", "node", node.Name)
-	var err error
-
-	backoff := wait.Backoff{
-		Steps:    5,
-		Duration: 10 * time.Second,
-		Factor:   2,
-	}
-	var lastErr error
-
-	reqLogger.Info("drainNode(): Start draining")
-	if err = wait.ExponentialBackoff(backoff, func() (bool, error) {
-		err := drain.RunCordonOrUncordon(dr.Drainer, node, true)
-		if err != nil {
-			lastErr = err
-			reqLogger.Info("drainNode(): Cordon failed, retrying", "error", err)
-			return false, nil
-		}
-		err = drain.RunNodeDrain(dr.Drainer, node.Name)
-		if err == nil {
-			return true, nil
-		}
-		lastErr = err
-		reqLogger.Info("drainNode(): Draining failed, retrying", "error", err)
-		return false, nil
-	}); err != nil {
-		if err == wait.ErrWaitTimeout {
-			reqLogger.Info("drainNode(): failed to drain node", "steps", backoff.Steps, "error", lastErr)
-		}
-		reqLogger.Info("drainNode(): failed to drain node", "error", err)
-		return err
-	}
-	reqLogger.Info(fmt.Sprintf("drainNode(): drain complete, annotating node with %s", constants.DrainComplete))
-
-	err = utils.AnnotateNode(node.Name, constants.DrainComplete, dr.Drainer.Client)
-	if err != nil {
-		reqLogger.Error(err, "drainNode(): failed to annotate node")
-	}
-
-	return nil
+func updateDrainAnnotation(c client.Client, node *corev1.Node, value string) error {
+	patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, constants.NodeDrainAnnotation, constants.Draining))
+	return c.Patch(context.TODO(), node, client.RawPatch(types.StrategicMergePatchType, patch))
 }
+
+/*
+	func (dr *DrainReconciler) drainNode(ctx context.Context, node *corev1.Node) error {
+		reqLogger := log.FromContext(ctx).WithValues("drain node", node.Name)
+		reqLogger.Info("drainNode(): Node drain requested", "node", node.Name)
+		var err error
+
+		backoff := wait.Backoff{
+			Steps:    5,
+			Duration: 10 * time.Second,
+			Factor:   2,
+		}
+		var lastErr error
+
+		reqLogger.Info("drainNode(): Start draining")
+		if err = wait.ExponentialBackoff(backoff, func() (bool, error) {
+			err := drain.RunCordonOrUncordon(dr.Drainer, node, true)
+			if err != nil {
+				lastErr = err
+				reqLogger.Info("drainNode(): Cordon failed, retrying", "error", err)
+				return false, nil
+			}
+			err = drain.RunNodeDrain(dr.Drainer, node.Name)
+			if err == nil {
+				return true, nil
+			}
+			lastErr = err
+			reqLogger.Info("drainNode(): Draining failed, retrying", "error", err)
+			return false, nil
+		}); err != nil {
+			if err == wait.ErrWaitTimeout {
+				reqLogger.Info("drainNode(): failed to drain node", "steps", backoff.Steps, "error", lastErr)
+			}
+			reqLogger.Info("drainNode(): failed to drain node", "error", err)
+			return err
+		}
+		reqLogger.Info(fmt.Sprintf("drainNode(): drain complete, annotating node with %s", constants.DrainComplete))
+
+		err = utils.AnnotateNode(node.Name, constants.DrainComplete, dr.Drainer.Client)
+		if err != nil {
+			reqLogger.Error(err, "drainNode(): failed to annotate node")
+		}
+
+		return nil
+	}
+*/
