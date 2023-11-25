@@ -1,10 +1,12 @@
-package utils
+package openshift
 
 import (
 	mcclientset "github.com/openshift/machine-config-operator/pkg/generated/clientset/versioned"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 )
 
 // OpenshiftFlavor holds metadata about the type of Openshift environment the operator is in.
@@ -16,6 +18,14 @@ const (
 	// OpenshiftFlavorDefault covers all remaining flavors of openshift not explicitly called out above
 	OpenshiftFlavorDefault OpenshiftFlavor = "default"
 )
+
+//go:generate ../../../bin/mockgen -destination mock/mock_openshift.go -source openshift.go
+type OpenshiftContextInterface interface {
+	GetFlavor() OpenshiftFlavor
+	GetMcClient() mcclientset.Interface
+	IsOpenshiftCluster() bool
+	IsHypershift() bool
+}
 
 // OpenshiftContext contains metadata and structs utilized to interact with Openshift clusters
 type OpenshiftContext struct {
@@ -29,25 +39,25 @@ type OpenshiftContext struct {
 	OpenshiftFlavor OpenshiftFlavor
 }
 
-func NewOpenshiftContext(config *rest.Config, scheme *runtime.Scheme) (*OpenshiftContext, error) {
-	if ClusterType != ClusterTypeOpenshift {
+func NewOpenshiftContext() (OpenshiftContextInterface, error) {
+	if vars.ClusterType != consts.ClusterTypeOpenshift {
 		return &OpenshiftContext{nil, false, ""}, nil
 	}
 
-	mcclient, err := mcclientset.NewForConfig(config)
+	mcclient, err := mcclientset.NewForConfig(vars.Config)
 	if err != nil {
 		return nil, err
 	}
 
 	openshiftFlavor := OpenshiftFlavorDefault
-	infraClient, err := client.New(config, client.Options{
-		Scheme: scheme,
+	infraClient, err := client.New(vars.Config, client.Options{
+		Scheme: vars.Scheme,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	isHypershift, err := IsExternalControlPlaneCluster(infraClient)
+	isHypershift, err := utils.IsExternalControlPlaneCluster(infraClient)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +67,14 @@ func NewOpenshiftContext(config *rest.Config, scheme *runtime.Scheme) (*Openshif
 	}
 
 	return &OpenshiftContext{mcclient, true, openshiftFlavor}, nil
+}
+
+func (c *OpenshiftContext) GetFlavor() OpenshiftFlavor {
+	return c.OpenshiftFlavor
+}
+
+func (c *OpenshiftContext) GetMcClient() mcclientset.Interface {
+	return c.McClient
 }
 
 func (c OpenshiftContext) IsOpenshiftCluster() bool {
