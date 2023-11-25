@@ -19,28 +19,29 @@ package controllers
 import (
 	"context"
 	"fmt"
-	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
-	mcfginformers "github.com/openshift/machine-config-operator/pkg/generated/informers/externalversions"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubectl/pkg/drain"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
+	mcfginformers "github.com/openshift/machine-config-operator/pkg/generated/informers/externalversions"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
@@ -199,7 +200,6 @@ func (dr *DrainReconcile) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 				return ctrl.Result{}, err
 			}
 			nodeStateDrainAnnotationCurrent = constants.Draining
-
 		} else if dr.openshiftContext.IsOpenshiftCluster() && !dr.openshiftContext.IsHypershift() {
 			nodePoolName, err := dr.openshiftContext.GetNodeMachinePoolName(node)
 			if err != nil {
@@ -212,7 +212,6 @@ func (dr *DrainReconcile) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 			nodeStateDrainAnnotationCurrent = nodeNetworkState.Annotations[constants.NodeStateDrainAnnotationCurrent]
 		}
-
 	}
 
 	// the node is MCP paused already, so we need to continue from here
@@ -226,7 +225,6 @@ func (dr *DrainReconcile) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 		err = utils.AnnotateObject(nodeNetworkState, constants.NodeStateDrainAnnotationCurrent, constants.DrainComplete, dr.Client)
 		return ctrl.Result{}, err
-
 	}
 
 	if nodeDrainAnnotation == constants.DrainIdle &&
@@ -238,9 +236,7 @@ func (dr *DrainReconcile) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 		err = utils.AnnotateObject(nodeNetworkState, constants.NodeStateDrainAnnotationCurrent, constants.DrainIdle, dr.Client)
 		return ctrl.Result{}, err
-
 	}
-
 	return reconcile.Result{}, nil
 }
 
@@ -257,9 +253,9 @@ func (dr *DrainReconcile) drainNode(ctx context.Context, node *corev1.Node) erro
 		GracePeriodSeconds:  -1,
 		Timeout:             90 * time.Second,
 		OnPodDeletedOrEvicted: func(pod *corev1.Pod, usingEviction bool) {
-			verbStr := "Deleted"
+			verbStr := constants.DrainDeleted
 			if usingEviction {
-				verbStr = "Evicted"
+				verbStr = constants.DrainEvicted
 			}
 			log.Log.Info(fmt.Sprintf("%s pod from Node %s/%s", verbStr, pod.Namespace, pod.Name))
 		},
@@ -401,9 +397,9 @@ func (dr *DrainReconcile) completeDrain(ctx context.Context, node *corev1.Node) 
 		GracePeriodSeconds:  -1,
 		Timeout:             90 * time.Second,
 		OnPodDeletedOrEvicted: func(pod *corev1.Pod, usingEviction bool) {
-			verbStr := "Deleted"
+			verbStr := constants.DrainDeleted
 			if usingEviction {
-				verbStr = "Evicted"
+				verbStr = constants.DrainEvicted
 			}
 			log.Log.Info(fmt.Sprintf("%s pod from Node %s/%s", verbStr, pod.Namespace, pod.Name))
 		},
@@ -431,7 +427,6 @@ func (dr *DrainReconcile) completeDrain(ctx context.Context, node *corev1.Node) 
 		pausePatch := []byte("{\"spec\":{\"paused\":false}}")
 		if _, err := dr.openshiftContext.McClient.MachineconfigurationV1().MachineConfigPools().Patch(context.Background(),
 			mcpName, types.MergePatchType, pausePatch, metav1.PatchOptions{}); err != nil {
-
 			log.Log.Error(err, "completeDrain(): failed to resume MCP", "mcp-name", mcpName)
 			return err
 		}
@@ -448,7 +443,6 @@ func (dr *DrainReconcile) SetupWithManager(mgr ctrl.Manager) error {
 				Namespace: namespace,
 				Name:      e.Object.GetName(),
 			}})
-
 		},
 		UpdateFunc: func(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 			q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
