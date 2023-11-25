@@ -6,10 +6,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
+	consts "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
 	plugin "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 )
 
 var PluginName = "virtual_plugin"
@@ -21,8 +20,7 @@ type VirtualPlugin struct {
 	DesireState    *sriovnetworkv1.SriovNetworkNodeState
 	LastState      *sriovnetworkv1.SriovNetworkNodeState
 	LoadVfioDriver uint
-	RunningOnHost  bool
-	HostManager    host.HostManagerInterface
+	helpers        plugin.HostHelpersInterface
 }
 
 const (
@@ -32,13 +30,12 @@ const (
 )
 
 // Initialize our plugin and set up initial values
-func NewVirtualPlugin(runningOnHost bool) (plugin.VendorPlugin, error) {
+func NewVirtualPlugin(helper plugin.HostHelpersInterface) (plugin.VendorPlugin, error) {
 	return &VirtualPlugin{
 		PluginName:     PluginName,
 		SpecVersion:    "1.0",
 		LoadVfioDriver: unloaded,
-		RunningOnHost:  runningOnHost,
-		HostManager:    host.NewHostManager(runningOnHost),
+		helpers:        helper,
 	}, nil
 }
 
@@ -79,12 +76,12 @@ func (p *VirtualPlugin) Apply() error {
 		// This is the case for OpenStack deployments where the underlying virtualization platform is KVM.
 		// NOTE: if VFIO was already loaded for some reason, we will not try to load it again with the new options.
 		kernelArgs := "enable_unsafe_noiommu_mode=1"
-		if err := p.HostManager.LoadKernelModule("vfio", kernelArgs); err != nil {
+		if err := p.helpers.LoadKernelModule("vfio", kernelArgs); err != nil {
 			log.Log.Error(err, "virtual-plugin Apply(): fail to load vfio kmod")
 			return err
 		}
 
-		if err := p.HostManager.LoadKernelModule("vfio_pci"); err != nil {
+		if err := p.helpers.LoadKernelModule("vfio_pci"); err != nil {
 			log.Log.Error(err, "virtual-plugin Apply(): fail to load vfio_pci kmod")
 			return err
 		}
@@ -98,12 +95,12 @@ func (p *VirtualPlugin) Apply() error {
 			return nil
 		}
 	}
-	exit, err := utils.Chroot("/host")
+	exit, err := p.helpers.Chroot("/host")
 	if err != nil {
 		return err
 	}
 	defer exit()
-	if err := utils.SyncNodeStateVirtual(p.DesireState); err != nil {
+	if err := SyncNodeStateVirtual(p.DesireState, p.helpers); err != nil {
 		return err
 	}
 	p.LastState = &sriovnetworkv1.SriovNetworkNodeState{}
@@ -122,7 +119,62 @@ func (p *VirtualPlugin) IsSystemService() bool {
 func needVfioDriver(state *sriovnetworkv1.SriovNetworkNodeState) bool {
 	for _, iface := range state.Spec.Interfaces {
 		for i := range iface.VfGroups {
-			if iface.VfGroups[i].DeviceType == constants.DeviceTypeVfioPci {
+			if iface.VfGroups[i].DeviceType == consts.DeviceTypeVfioPci {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SyncNodeStateVirtual attempt to update the node state to match the desired state in virtual platforms
+func SyncNodeStateVirtual(newState *sriovnetworkv1.SriovNetworkNodeState, helpers plugin.HostHelpersInterface) error {
+	var err error
+	for _, ifaceStatus := range newState.Status.Interfaces {
+		for _, iface := range newState.Spec.Interfaces {
+			if iface.PciAddress == ifaceStatus.PciAddress {
+				if !needUpdateVirtual(&iface, &ifaceStatus) {
+					log.Log.V(2).Info("SyncNodeStateVirtual(): no need update interface", "address", iface.PciAddress)
+					break
+				}
+				if err = helpers.ConfigSriovDeviceVirtual(&iface); err != nil {
+					log.Log.Error(err, "SyncNodeStateVirtual(): fail to config sriov interface", "address", iface.PciAddress)
+					return err
+				}
+				break
+			}
+		}
+	}
+	return nil
+}
+
+func needUpdateVirtual(iface *sriovnetworkv1.Interface, ifaceStatus *sriovnetworkv1.InterfaceExt) bool {
+	// The device MTU is set by the platform
+	// The NumVfs is always 1
+	if iface.NumVfs > 0 {
+		for _, vf := range ifaceStatus.VFs {
+			ingroup := false
+			for _, group := range iface.VfGroups {
+				if sriovnetworkv1.IndexInRange(vf.VfID, group.VfRange) {
+					ingroup = true
+					if group.DeviceType != consts.DeviceTypeNetDevice {
+						if group.DeviceType != vf.Driver {
+							log.Log.V(2).Info("needUpdateVirtual(): Driver needs update",
+								"desired", group.DeviceType, "current", vf.Driver)
+							return true
+						}
+					} else {
+						if sriovnetworkv1.StringInArray(vf.Driver, vars.DpdkDrivers) {
+							log.Log.V(2).Info("needUpdateVirtual(): Driver needs update",
+								"desired", group.DeviceType, "current", vf.Driver)
+							return true
+						}
+					}
+					break
+				}
+			}
+			if !ingroup && sriovnetworkv1.StringInArray(vf.Driver, vars.DpdkDrivers) {
+				// VF which has DPDK driver loaded but not in any group, needs to be reset to default driver.
 				return true
 			}
 		}

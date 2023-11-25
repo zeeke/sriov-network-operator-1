@@ -16,7 +16,7 @@ type IntelPlugin struct {
 	LastState   *sriovnetworkv1.SriovNetworkNodeState
 }
 
-func NewIntelPlugin() (plugin.VendorPlugin, error) {
+func NewIntelPlugin(helpers plugin.HostHelpersInterface) (plugin.VendorPlugin, error) {
 	return &IntelPlugin{
 		PluginName:  PluginName,
 		SpecVersion: "1.0",
