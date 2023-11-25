@@ -19,10 +19,16 @@ import (
 	"fmt"
 	"os"
 	pathlib "path"
+	"path/filepath"
 	"strings"
 
+	"github.com/coreos/go-systemd/v22/unit"
+	"github.com/jaypipes/ghw"
+	"github.com/vishvananda/netlink"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 )
 
@@ -47,6 +53,55 @@ type HostManagerInterface interface {
 	TryEnableTun()
 	TryEnableVhostNet()
 	TryEnableRdma() (bool, error)
+	TryToGetVirtualInterfaceName(string) string
+	TryGetInterfaceName(string) string
+	GetNicSriovMode(string) (string, error)
+	GetPhysSwitchID(string) (string, error)
+	GetPhysPortName(string) (string, error)
+	IsSwitchdev(string) bool
+	IsKernelLockdownMode() bool
+	GetNetdevMTU(string) int
+	SetSriovNumVfs(string, int) error
+	SetNetdevMTU(string, int) error
+	GetNetDevMac(string) string
+	GetNetDevLinkSpeed(string) string
+
+	GetVfInfo(string, []*ghw.PCIDevice) sriovnetworkv1.VirtualFunction
+	SetVfGUID(string, netlink.Link) error
+	VFIsReady(string) (netlink.Link, error)
+	SetVfAdminMac(string, netlink.Link, netlink.Link) error
+
+	GetLinkType(sriovnetworkv1.InterfaceExt) string
+	ResetSriovDevice(sriovnetworkv1.InterfaceExt) error
+	DiscoverSriovDevices(StoreManagerInterface) ([]sriovnetworkv1.InterfaceExt, error)
+	ConfigSriovDevice(iface *sriovnetworkv1.Interface, ifaceStatus *sriovnetworkv1.InterfaceExt) error
+	ConfigSriovInterfaces(StoreManagerInterface, []sriovnetworkv1.Interface, []sriovnetworkv1.InterfaceExt, map[string]bool) error
+	ConfigSriovDeviceVirtual(iface *sriovnetworkv1.Interface) error
+
+	Unbind(string) error
+	BindDpdkDriver(string, string) error
+	BindDefaultDriver(string) error
+	HasDriver(string) (bool, string)
+	RebindVfToDefaultDriver(string) error
+	UnbindDriverIfNeeded(string, bool) error
+
+	WriteSwitchdevConfFile(*sriovnetworkv1.SriovNetworkNodeState, map[string]bool) (bool, error)
+	PrepareNMUdevRule([]string) error
+	AddUdevRule(string) error
+	RemoveUdevRule(string) error
+
+	GetCurrentKernelArgs() (string, error)
+	IsKernelArgsSet(string, string) bool
+
+	IsServiceExist(string) (bool, error)
+	IsServiceEnabled(string) (bool, error)
+	ReadService(string) (*Service, error)
+	EnableService(service *Service) error
+	ReadServiceManifestFile(path string) (*Service, error)
+	RemoveFromService(service *Service, options ...*unit.UnitOption) (*Service, error)
+	ReadScriptManifestFile(path string) (*ScriptManifestFile, error)
+	ReadServiceInjectionManifestFile(path string) (*Service, error)
+	CompareServices(serviceA, serviceB *Service) (bool, error)
 
 	// private functions
 	// part of the interface for the mock generation
@@ -65,20 +120,18 @@ type HostManagerInterface interface {
 }
 
 type HostManager struct {
-	RunOnHost bool
-	cmd       utils.CommandInterface
+	utilsHelper utils.UtilsInterface
 }
 
-func NewHostManager(runOnHost bool) HostManagerInterface {
+func NewHostManager(utilsInterface utils.UtilsInterface) HostManagerInterface {
 	return &HostManager{
-		RunOnHost: runOnHost,
-		cmd:       &utils.Command{},
+		utilsHelper: utilsInterface,
 	}
 }
 
 func (h *HostManager) LoadKernelModule(name string, args ...string) error {
 	log.Log.Info("LoadKernelModule(): try to load kernel module", "name", name, "args", args)
-	chrootDefinition := getChrootExtension(h.RunOnHost)
+	chrootDefinition := utils.GetChrootExtension()
 	cmdArgs := strings.Join(args, " ")
 
 	// check if the driver is already loaded in to the system
@@ -91,7 +144,7 @@ func (h *HostManager) LoadKernelModule(name string, args ...string) error {
 		return nil
 	}
 
-	_, _, err = h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("%s modprobe %s %s", chrootDefinition, name, cmdArgs))
+	_, _, err = h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("%s modprobe %s %s", chrootDefinition, name, cmdArgs))
 	if err != nil {
 		log.Log.Error(err, "LoadKernelModule(): failed to load kernel module with arguments", "name", name, "args", args)
 		return err
@@ -101,21 +154,21 @@ func (h *HostManager) LoadKernelModule(name string, args ...string) error {
 
 func (h *HostManager) IsKernelModuleLoaded(kernelModuleName string) (bool, error) {
 	log.Log.Info("IsKernelModuleLoaded(): check if kernel module is loaded", "name", kernelModuleName)
-	chrootDefinition := getChrootExtension(h.RunOnHost)
+	chrootDefinition := utils.GetChrootExtension()
 
-	stdout, stderr, err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("%s lsmod | grep \"^%s\"", chrootDefinition, kernelModuleName))
-	if err != nil && stderr.Len() != 0 {
+	stdout, stderr, err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("%s lsmod | grep \"^%s\"", chrootDefinition, kernelModuleName))
+	if err != nil && len(stderr) != 0 {
 		log.Log.Error(err, "IsKernelModuleLoaded(): failed to check if kernel module is loaded",
-			"name", kernelModuleName, "stderr", stderr.String())
+			"name", kernelModuleName, "stderr", stderr)
 		return false, err
 	}
-	log.Log.V(2).Info("IsKernelModuleLoaded():", "stdout", stdout.String())
-	if stderr.Len() != 0 {
-		log.Log.Error(err, "IsKernelModuleLoaded(): failed to check if kernel module is loaded", "name", kernelModuleName, "stderr", stderr.String())
-		return false, fmt.Errorf(stderr.String())
+	log.Log.V(2).Info("IsKernelModuleLoaded():", "stdout", stdout)
+	if len(stderr) != 0 {
+		log.Log.Error(err, "IsKernelModuleLoaded(): failed to check if kernel module is loaded", "name", kernelModuleName, "stderr", stderr)
+		return false, fmt.Errorf(stderr)
 	}
 
-	if stdout.Len() != 0 {
+	if len(stdout) != 0 {
 		log.Log.Info("IsKernelModuleLoaded(): kernel module already loaded", "name", kernelModuleName)
 		return true, nil
 	}
@@ -137,19 +190,19 @@ func (h *HostManager) TryEnableVhostNet() {
 
 func (h *HostManager) TryEnableRdma() (bool, error) {
 	log.Log.V(2).Info("tryEnableRdma()")
-	chrootDefinition := getChrootExtension(h.RunOnHost)
+	chrootDefinition := utils.GetChrootExtension()
 
 	// check if the driver is already loaded in to the system
-	_, stderr, mlx4Err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("grep --quiet 'mlx4_en' <(%s lsmod)", chrootDefinition))
-	if mlx4Err != nil && stderr.Len() != 0 {
-		log.Log.Error(mlx4Err, "tryEnableRdma(): failed to check for kernel module 'mlx4_en'", "stderr", stderr.String())
-		return false, fmt.Errorf(stderr.String())
+	_, stderr, mlx4Err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("grep --quiet 'mlx4_en' <(%s lsmod)", chrootDefinition))
+	if mlx4Err != nil && len(stderr) != 0 {
+		log.Log.Error(mlx4Err, "tryEnableRdma(): failed to check for kernel module 'mlx4_en'", "stderr", stderr)
+		return false, fmt.Errorf(stderr)
 	}
 
-	_, stderr, mlx5Err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("grep --quiet 'mlx5_core' <(%s lsmod)", chrootDefinition))
-	if mlx5Err != nil && stderr.Len() != 0 {
-		log.Log.Error(mlx5Err, "tryEnableRdma(): failed to check for kernel module 'mlx5_core'", "stderr", stderr.String())
-		return false, fmt.Errorf(stderr.String())
+	_, stderr, mlx5Err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("grep --quiet 'mlx5_core' <(%s lsmod)", chrootDefinition))
+	if mlx5Err != nil && len(stderr) != 0 {
+		log.Log.Error(mlx5Err, "tryEnableRdma(): failed to check for kernel module 'mlx5_core'", "stderr", stderr)
+		return false, fmt.Errorf(stderr)
 	}
 
 	if mlx4Err != nil && mlx5Err != nil {
@@ -268,7 +321,7 @@ func (h *HostManager) EnableRDMAOnUbuntuMachine() (bool, error) {
 func (h *HostManager) IsRHELSystem() (bool, error) {
 	log.Log.Info("IsRHELSystem(): checking for RHEL machine")
 	path := redhatReleaseFile
-	if !h.RunOnHost {
+	if !vars.UsingSystemdMode {
 		path = pathlib.Join(hostPathFromDaemon, path)
 	}
 	if _, err := os.Stat(path); err != nil {
@@ -287,7 +340,7 @@ func (h *HostManager) IsRHELSystem() (bool, error) {
 func (h *HostManager) IsCoreOS() (bool, error) {
 	log.Log.Info("IsCoreOS(): checking for CoreOS machine")
 	path := redhatReleaseFile
-	if !h.RunOnHost {
+	if !vars.UsingSystemdMode {
 		path = pathlib.Join(hostPathFromDaemon, path)
 	}
 
@@ -307,7 +360,7 @@ func (h *HostManager) IsCoreOS() (bool, error) {
 func (h *HostManager) IsUbuntuSystem() (bool, error) {
 	log.Log.Info("IsUbuntuSystem(): checking for Ubuntu machine")
 	path := genericOSReleaseFile
-	if !h.RunOnHost {
+	if !vars.UsingSystemdMode {
 		path = pathlib.Join(hostPathFromDaemon, path)
 	}
 
@@ -321,13 +374,13 @@ func (h *HostManager) IsUbuntuSystem() (bool, error) {
 		return false, err
 	}
 
-	stdout, stderr, err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("grep -i --quiet 'ubuntu' %s", path))
-	if err != nil && stderr.Len() != 0 {
-		log.Log.Error(err, "IsUbuntuSystem(): failed to check for ubuntu operating system name in os-releasae file", "stderr", stderr.String())
-		return false, fmt.Errorf(stderr.String())
+	stdout, stderr, err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("grep -i --quiet 'ubuntu' %s", path))
+	if err != nil && len(stderr) != 0 {
+		log.Log.Error(err, "IsUbuntuSystem(): failed to check for ubuntu operating system name in os-releasae file", "stderr", stderr)
+		return false, fmt.Errorf(stderr)
 	}
 
-	if stdout.Len() > 0 {
+	if len(stdout) > 0 {
 		return true, nil
 	}
 
@@ -336,13 +389,13 @@ func (h *HostManager) IsUbuntuSystem() (bool, error) {
 
 func (h *HostManager) RdmaIsLoaded() (bool, error) {
 	log.Log.V(2).Info("RdmaIsLoaded()")
-	chrootDefinition := getChrootExtension(h.RunOnHost)
+	chrootDefinition := utils.GetChrootExtension()
 
 	// check if the driver is already loaded in to the system
-	_, stderr, err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("grep --quiet '\\(^ib\\|^rdma\\)' <(%s lsmod)", chrootDefinition))
-	if err != nil && stderr.Len() != 0 {
-		log.Log.Error(err, "RdmaIsLoaded(): fail to check if ib and rdma kernel modules are loaded", "stderr", stderr.String())
-		return false, fmt.Errorf(stderr.String())
+	_, stderr, err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("grep --quiet '\\(^ib\\|^rdma\\)' <(%s lsmod)", chrootDefinition))
+	if err != nil && len(stderr) != 0 {
+		log.Log.Error(err, "RdmaIsLoaded(): fail to check if ib and rdma kernel modules are loaded", "stderr", stderr)
+		return false, fmt.Errorf(stderr)
 	}
 
 	if err != nil {
@@ -354,7 +407,7 @@ func (h *HostManager) RdmaIsLoaded() (bool, error) {
 
 func (h *HostManager) EnableRDMA(conditionFilePath, serviceName, packageManager string) (bool, error) {
 	path := conditionFilePath
-	if !h.RunOnHost {
+	if !vars.UsingSystemdMode {
 		path = pathlib.Join(hostPathFromDaemon, path)
 	}
 	log.Log.Info("EnableRDMA(): checking for service file", "path", path)
@@ -387,11 +440,11 @@ func (h *HostManager) EnableRDMA(conditionFilePath, serviceName, packageManager 
 
 func (h *HostManager) InstallRDMA(packageManager string) error {
 	log.Log.Info("InstallRDMA(): installing RDMA")
-	chrootDefinition := getChrootExtension(h.RunOnHost)
+	chrootDefinition := utils.GetChrootExtension()
 
-	stdout, stderr, err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("%s %s install -y rdma-core", chrootDefinition, packageManager))
-	if err != nil && stderr.Len() != 0 {
-		log.Log.Error(err, "InstallRDMA(): failed to install RDMA package", "stdout", stdout.String(), "stderr", stderr.String())
+	stdout, stderr, err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("%s %s install -y rdma-core", chrootDefinition, packageManager))
+	if err != nil && len(stderr) != 0 {
+		log.Log.Error(err, "InstallRDMA(): failed to install RDMA package", "stdout", stdout, "stderr", stderr)
 		return err
 	}
 
@@ -416,12 +469,12 @@ func (h *HostManager) TriggerUdevEvent() error {
 
 func (h *HostManager) ReloadDriver(driverName string) error {
 	log.Log.Info("ReloadDriver(): reload driver", "name", driverName)
-	chrootDefinition := getChrootExtension(h.RunOnHost)
+	chrootDefinition := utils.GetChrootExtension()
 
-	_, stderr, err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("%s modprobe -r %s && %s modprobe %s", chrootDefinition, driverName, chrootDefinition, driverName))
-	if err != nil && stderr.Len() != 0 {
+	_, stderr, err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("%s modprobe -r %s && %s modprobe %s", chrootDefinition, driverName, chrootDefinition, driverName))
+	if err != nil && len(stderr) != 0 {
 		log.Log.Error(err, "InstallRDMA(): failed to reload kernel module",
-			"name", driverName, "stderr", stderr.String())
+			"name", driverName, "stderr", stderr)
 		return err
 	}
 
@@ -430,28 +483,36 @@ func (h *HostManager) ReloadDriver(driverName string) error {
 
 func (h *HostManager) GetOSPrettyName() (string, error) {
 	path := genericOSReleaseFile
-	if !h.RunOnHost {
+	if !vars.UsingSystemdMode {
 		path = pathlib.Join(hostPathFromDaemon, path)
 	}
 
 	log.Log.Info("GetOSPrettyName(): getting os name from os-release file")
 
-	stdout, stderr, err := h.cmd.Run("/bin/sh", "-c", fmt.Sprintf("cat %s | grep PRETTY_NAME | cut -c 13-", path))
-	if err != nil && stderr.Len() != 0 {
-		log.Log.Error(err, "IsUbuntuSystem(): failed to check for ubuntu operating system name in os-releasae file", "stderr", stderr.String())
-		return "", fmt.Errorf(stderr.String())
+	stdout, stderr, err := h.utilsHelper.RunCommand("/bin/sh", "-c", fmt.Sprintf("cat %s | grep PRETTY_NAME | cut -c 13-", path))
+	if err != nil && len(stderr) != 0 {
+		log.Log.Error(err, "IsUbuntuSystem(): failed to check for ubuntu operating system name in os-releasae file", "stderr", stderr)
+		return "", fmt.Errorf(stderr)
 	}
 
-	if stdout.Len() > 0 {
-		return stdout.String(), nil
+	if len(stdout) > 0 {
+		return stdout, nil
 	}
 
 	return "", fmt.Errorf("failed to find pretty operating system name")
 }
 
-func getChrootExtension(runOnHost bool) string {
-	if !runOnHost {
-		return fmt.Sprintf("chroot %s/host", utils.FilesystemRoot)
+// IsKernelLockdownMode returns true when kernel lockdown mode is enabled
+// TODO: change this to return error
+func (h *HostManager) IsKernelLockdownMode() bool {
+	path := utils.GetHostExtension()
+	path = filepath.Join(path, "/sys/kernel/security/lockdown")
+
+	stdout, stderr, err := h.utilsHelper.RunCommand("/bin/sh", "-c", "cat", path)
+	log.Log.V(2).Info("IsKernelLockdownMode()", "output", stdout, "error", err)
+	if err != nil {
+		log.Log.Error(err, "IsKernelLockdownMode(): failed to check for lockdown file", "stderr", stderr)
+		return false
 	}
-	return utils.FilesystemRoot
+	return strings.Contains(stdout, "[integrity]") || strings.Contains(stdout, "[confidentiality]")
 }

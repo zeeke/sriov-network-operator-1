@@ -7,7 +7,12 @@ package mock_host
 import (
 	reflect "reflect"
 
+	unit "github.com/coreos/go-systemd/v22/unit"
 	gomock "github.com/golang/mock/gomock"
+	ghw "github.com/jaypipes/ghw"
+	v1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
+	host "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
+	netlink "github.com/vishvananda/netlink"
 )
 
 // MockHostManagerInterface is a mock of HostManagerInterface interface.
@@ -31,6 +36,120 @@ func NewMockHostManagerInterface(ctrl *gomock.Controller) *MockHostManagerInterf
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockHostManagerInterface) EXPECT() *MockHostManagerInterfaceMockRecorder {
 	return m.recorder
+}
+
+// AddUdevRule mocks base method.
+func (m *MockHostManagerInterface) AddUdevRule(arg0 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddUdevRule", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddUdevRule indicates an expected call of AddUdevRule.
+func (mr *MockHostManagerInterfaceMockRecorder) AddUdevRule(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddUdevRule", reflect.TypeOf((*MockHostManagerInterface)(nil).AddUdevRule), arg0)
+}
+
+// BindDefaultDriver mocks base method.
+func (m *MockHostManagerInterface) BindDefaultDriver(arg0 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BindDefaultDriver", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BindDefaultDriver indicates an expected call of BindDefaultDriver.
+func (mr *MockHostManagerInterfaceMockRecorder) BindDefaultDriver(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BindDefaultDriver", reflect.TypeOf((*MockHostManagerInterface)(nil).BindDefaultDriver), arg0)
+}
+
+// BindDpdkDriver mocks base method.
+func (m *MockHostManagerInterface) BindDpdkDriver(arg0, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BindDpdkDriver", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BindDpdkDriver indicates an expected call of BindDpdkDriver.
+func (mr *MockHostManagerInterfaceMockRecorder) BindDpdkDriver(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BindDpdkDriver", reflect.TypeOf((*MockHostManagerInterface)(nil).BindDpdkDriver), arg0, arg1)
+}
+
+// CompareServices mocks base method.
+func (m *MockHostManagerInterface) CompareServices(serviceA, serviceB *host.Service) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompareServices", serviceA, serviceB)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompareServices indicates an expected call of CompareServices.
+func (mr *MockHostManagerInterfaceMockRecorder) CompareServices(serviceA, serviceB interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompareServices", reflect.TypeOf((*MockHostManagerInterface)(nil).CompareServices), serviceA, serviceB)
+}
+
+// ConfigSriovDevice mocks base method.
+func (m *MockHostManagerInterface) ConfigSriovDevice(iface *v1.Interface, ifaceStatus *v1.InterfaceExt) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfigSriovDevice", iface, ifaceStatus)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ConfigSriovDevice indicates an expected call of ConfigSriovDevice.
+func (mr *MockHostManagerInterfaceMockRecorder) ConfigSriovDevice(iface, ifaceStatus interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigSriovDevice", reflect.TypeOf((*MockHostManagerInterface)(nil).ConfigSriovDevice), iface, ifaceStatus)
+}
+
+// ConfigSriovDeviceVirtual mocks base method.
+func (m *MockHostManagerInterface) ConfigSriovDeviceVirtual(iface *v1.Interface) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfigSriovDeviceVirtual", iface)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ConfigSriovDeviceVirtual indicates an expected call of ConfigSriovDeviceVirtual.
+func (mr *MockHostManagerInterfaceMockRecorder) ConfigSriovDeviceVirtual(iface interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigSriovDeviceVirtual", reflect.TypeOf((*MockHostManagerInterface)(nil).ConfigSriovDeviceVirtual), iface)
+}
+
+// ConfigSriovInterfaces mocks base method.
+func (m *MockHostManagerInterface) ConfigSriovInterfaces(arg0 host.StoreManagerInterface, arg1 []v1.Interface, arg2 []v1.InterfaceExt, arg3 map[string]bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfigSriovInterfaces", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ConfigSriovInterfaces indicates an expected call of ConfigSriovInterfaces.
+func (mr *MockHostManagerInterfaceMockRecorder) ConfigSriovInterfaces(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigSriovInterfaces", reflect.TypeOf((*MockHostManagerInterface)(nil).ConfigSriovInterfaces), arg0, arg1, arg2, arg3)
+}
+
+// DiscoverSriovDevices mocks base method.
+func (m *MockHostManagerInterface) DiscoverSriovDevices(arg0 host.StoreManagerInterface) ([]v1.InterfaceExt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DiscoverSriovDevices", arg0)
+	ret0, _ := ret[0].([]v1.InterfaceExt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DiscoverSriovDevices indicates an expected call of DiscoverSriovDevices.
+func (mr *MockHostManagerInterfaceMockRecorder) DiscoverSriovDevices(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscoverSriovDevices", reflect.TypeOf((*MockHostManagerInterface)(nil).DiscoverSriovDevices), arg0)
 }
 
 // EnableRDMA mocks base method.
@@ -63,6 +182,106 @@ func (mr *MockHostManagerInterfaceMockRecorder) EnableRDMAOnRHELMachine() *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableRDMAOnRHELMachine", reflect.TypeOf((*MockHostManagerInterface)(nil).EnableRDMAOnRHELMachine))
 }
 
+// EnableService mocks base method.
+func (m *MockHostManagerInterface) EnableService(service *host.Service) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnableService", service)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnableService indicates an expected call of EnableService.
+func (mr *MockHostManagerInterfaceMockRecorder) EnableService(service interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableService", reflect.TypeOf((*MockHostManagerInterface)(nil).EnableService), service)
+}
+
+// GetCurrentKernelArgs mocks base method.
+func (m *MockHostManagerInterface) GetCurrentKernelArgs() (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCurrentKernelArgs")
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCurrentKernelArgs indicates an expected call of GetCurrentKernelArgs.
+func (mr *MockHostManagerInterfaceMockRecorder) GetCurrentKernelArgs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentKernelArgs", reflect.TypeOf((*MockHostManagerInterface)(nil).GetCurrentKernelArgs))
+}
+
+// GetLinkType mocks base method.
+func (m *MockHostManagerInterface) GetLinkType(arg0 v1.InterfaceExt) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLinkType", arg0)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetLinkType indicates an expected call of GetLinkType.
+func (mr *MockHostManagerInterfaceMockRecorder) GetLinkType(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLinkType", reflect.TypeOf((*MockHostManagerInterface)(nil).GetLinkType), arg0)
+}
+
+// GetNetDevLinkSpeed mocks base method.
+func (m *MockHostManagerInterface) GetNetDevLinkSpeed(arg0 string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetDevLinkSpeed", arg0)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetNetDevLinkSpeed indicates an expected call of GetNetDevLinkSpeed.
+func (mr *MockHostManagerInterfaceMockRecorder) GetNetDevLinkSpeed(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetDevLinkSpeed", reflect.TypeOf((*MockHostManagerInterface)(nil).GetNetDevLinkSpeed), arg0)
+}
+
+// GetNetDevMac mocks base method.
+func (m *MockHostManagerInterface) GetNetDevMac(arg0 string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetDevMac", arg0)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetNetDevMac indicates an expected call of GetNetDevMac.
+func (mr *MockHostManagerInterfaceMockRecorder) GetNetDevMac(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetDevMac", reflect.TypeOf((*MockHostManagerInterface)(nil).GetNetDevMac), arg0)
+}
+
+// GetNetdevMTU mocks base method.
+func (m *MockHostManagerInterface) GetNetdevMTU(arg0 string) int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNetdevMTU", arg0)
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetNetdevMTU indicates an expected call of GetNetdevMTU.
+func (mr *MockHostManagerInterfaceMockRecorder) GetNetdevMTU(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetdevMTU", reflect.TypeOf((*MockHostManagerInterface)(nil).GetNetdevMTU), arg0)
+}
+
+// GetNicSriovMode mocks base method.
+func (m *MockHostManagerInterface) GetNicSriovMode(arg0 string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNicSriovMode", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNicSriovMode indicates an expected call of GetNicSriovMode.
+func (mr *MockHostManagerInterfaceMockRecorder) GetNicSriovMode(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNicSriovMode", reflect.TypeOf((*MockHostManagerInterface)(nil).GetNicSriovMode), arg0)
+}
+
 // GetOSPrettyName mocks base method.
 func (m *MockHostManagerInterface) GetOSPrettyName() (string, error) {
 	m.ctrl.T.Helper()
@@ -76,6 +295,65 @@ func (m *MockHostManagerInterface) GetOSPrettyName() (string, error) {
 func (mr *MockHostManagerInterfaceMockRecorder) GetOSPrettyName() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOSPrettyName", reflect.TypeOf((*MockHostManagerInterface)(nil).GetOSPrettyName))
+}
+
+// GetPhysPortName mocks base method.
+func (m *MockHostManagerInterface) GetPhysPortName(arg0 string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPhysPortName", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPhysPortName indicates an expected call of GetPhysPortName.
+func (mr *MockHostManagerInterfaceMockRecorder) GetPhysPortName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPhysPortName", reflect.TypeOf((*MockHostManagerInterface)(nil).GetPhysPortName), arg0)
+}
+
+// GetPhysSwitchID mocks base method.
+func (m *MockHostManagerInterface) GetPhysSwitchID(arg0 string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPhysSwitchID", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPhysSwitchID indicates an expected call of GetPhysSwitchID.
+func (mr *MockHostManagerInterfaceMockRecorder) GetPhysSwitchID(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPhysSwitchID", reflect.TypeOf((*MockHostManagerInterface)(nil).GetPhysSwitchID), arg0)
+}
+
+// GetVfInfo mocks base method.
+func (m *MockHostManagerInterface) GetVfInfo(arg0 string, arg1 []*ghw.PCIDevice) v1.VirtualFunction {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVfInfo", arg0, arg1)
+	ret0, _ := ret[0].(v1.VirtualFunction)
+	return ret0
+}
+
+// GetVfInfo indicates an expected call of GetVfInfo.
+func (mr *MockHostManagerInterfaceMockRecorder) GetVfInfo(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVfInfo", reflect.TypeOf((*MockHostManagerInterface)(nil).GetVfInfo), arg0, arg1)
+}
+
+// HasDriver mocks base method.
+func (m *MockHostManagerInterface) HasDriver(arg0 string) (bool, string) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasDriver", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(string)
+	return ret0, ret1
+}
+
+// HasDriver indicates an expected call of HasDriver.
+func (mr *MockHostManagerInterfaceMockRecorder) HasDriver(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasDriver", reflect.TypeOf((*MockHostManagerInterface)(nil).HasDriver), arg0)
 }
 
 // InstallRDMA mocks base method.
@@ -107,6 +385,34 @@ func (mr *MockHostManagerInterfaceMockRecorder) IsCoreOS() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCoreOS", reflect.TypeOf((*MockHostManagerInterface)(nil).IsCoreOS))
 }
 
+// IsKernelArgsSet mocks base method.
+func (m *MockHostManagerInterface) IsKernelArgsSet(arg0, arg1 string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsKernelArgsSet", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsKernelArgsSet indicates an expected call of IsKernelArgsSet.
+func (mr *MockHostManagerInterfaceMockRecorder) IsKernelArgsSet(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsKernelArgsSet", reflect.TypeOf((*MockHostManagerInterface)(nil).IsKernelArgsSet), arg0, arg1)
+}
+
+// IsKernelLockdownMode mocks base method.
+func (m *MockHostManagerInterface) IsKernelLockdownMode() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsKernelLockdownMode")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsKernelLockdownMode indicates an expected call of IsKernelLockdownMode.
+func (mr *MockHostManagerInterfaceMockRecorder) IsKernelLockdownMode() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsKernelLockdownMode", reflect.TypeOf((*MockHostManagerInterface)(nil).IsKernelLockdownMode))
+}
+
 // IsKernelModuleLoaded mocks base method.
 func (m *MockHostManagerInterface) IsKernelModuleLoaded(arg0 string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -135,6 +441,50 @@ func (m *MockHostManagerInterface) IsRHELSystem() (bool, error) {
 func (mr *MockHostManagerInterfaceMockRecorder) IsRHELSystem() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsRHELSystem", reflect.TypeOf((*MockHostManagerInterface)(nil).IsRHELSystem))
+}
+
+// IsServiceEnabled mocks base method.
+func (m *MockHostManagerInterface) IsServiceEnabled(arg0 string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsServiceEnabled", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsServiceEnabled indicates an expected call of IsServiceEnabled.
+func (mr *MockHostManagerInterfaceMockRecorder) IsServiceEnabled(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsServiceEnabled", reflect.TypeOf((*MockHostManagerInterface)(nil).IsServiceEnabled), arg0)
+}
+
+// IsServiceExist mocks base method.
+func (m *MockHostManagerInterface) IsServiceExist(arg0 string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsServiceExist", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsServiceExist indicates an expected call of IsServiceExist.
+func (mr *MockHostManagerInterfaceMockRecorder) IsServiceExist(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsServiceExist", reflect.TypeOf((*MockHostManagerInterface)(nil).IsServiceExist), arg0)
+}
+
+// IsSwitchdev mocks base method.
+func (m *MockHostManagerInterface) IsSwitchdev(arg0 string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsSwitchdev", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSwitchdev indicates an expected call of IsSwitchdev.
+func (mr *MockHostManagerInterfaceMockRecorder) IsSwitchdev(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSwitchdev", reflect.TypeOf((*MockHostManagerInterface)(nil).IsSwitchdev), arg0)
 }
 
 // IsUbuntuSystem mocks base method.
@@ -171,6 +521,20 @@ func (mr *MockHostManagerInterfaceMockRecorder) LoadKernelModule(name interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadKernelModule", reflect.TypeOf((*MockHostManagerInterface)(nil).LoadKernelModule), varargs...)
 }
 
+// PrepareNMUdevRule mocks base method.
+func (m *MockHostManagerInterface) PrepareNMUdevRule(arg0 []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PrepareNMUdevRule", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PrepareNMUdevRule indicates an expected call of PrepareNMUdevRule.
+func (mr *MockHostManagerInterfaceMockRecorder) PrepareNMUdevRule(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareNMUdevRule", reflect.TypeOf((*MockHostManagerInterface)(nil).PrepareNMUdevRule), arg0)
+}
+
 // RdmaIsLoaded mocks base method.
 func (m *MockHostManagerInterface) RdmaIsLoaded() (bool, error) {
 	m.ctrl.T.Helper()
@@ -186,6 +550,80 @@ func (mr *MockHostManagerInterfaceMockRecorder) RdmaIsLoaded() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RdmaIsLoaded", reflect.TypeOf((*MockHostManagerInterface)(nil).RdmaIsLoaded))
 }
 
+// ReadScriptManifestFile mocks base method.
+func (m *MockHostManagerInterface) ReadScriptManifestFile(path string) (*host.ScriptManifestFile, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadScriptManifestFile", path)
+	ret0, _ := ret[0].(*host.ScriptManifestFile)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadScriptManifestFile indicates an expected call of ReadScriptManifestFile.
+func (mr *MockHostManagerInterfaceMockRecorder) ReadScriptManifestFile(path interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadScriptManifestFile", reflect.TypeOf((*MockHostManagerInterface)(nil).ReadScriptManifestFile), path)
+}
+
+// ReadService mocks base method.
+func (m *MockHostManagerInterface) ReadService(arg0 string) (*host.Service, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadService", arg0)
+	ret0, _ := ret[0].(*host.Service)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadService indicates an expected call of ReadService.
+func (mr *MockHostManagerInterfaceMockRecorder) ReadService(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadService", reflect.TypeOf((*MockHostManagerInterface)(nil).ReadService), arg0)
+}
+
+// ReadServiceInjectionManifestFile mocks base method.
+func (m *MockHostManagerInterface) ReadServiceInjectionManifestFile(path string) (*host.Service, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadServiceInjectionManifestFile", path)
+	ret0, _ := ret[0].(*host.Service)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadServiceInjectionManifestFile indicates an expected call of ReadServiceInjectionManifestFile.
+func (mr *MockHostManagerInterfaceMockRecorder) ReadServiceInjectionManifestFile(path interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadServiceInjectionManifestFile", reflect.TypeOf((*MockHostManagerInterface)(nil).ReadServiceInjectionManifestFile), path)
+}
+
+// ReadServiceManifestFile mocks base method.
+func (m *MockHostManagerInterface) ReadServiceManifestFile(path string) (*host.Service, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadServiceManifestFile", path)
+	ret0, _ := ret[0].(*host.Service)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadServiceManifestFile indicates an expected call of ReadServiceManifestFile.
+func (mr *MockHostManagerInterfaceMockRecorder) ReadServiceManifestFile(path interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadServiceManifestFile", reflect.TypeOf((*MockHostManagerInterface)(nil).ReadServiceManifestFile), path)
+}
+
+// RebindVfToDefaultDriver mocks base method.
+func (m *MockHostManagerInterface) RebindVfToDefaultDriver(arg0 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RebindVfToDefaultDriver", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RebindVfToDefaultDriver indicates an expected call of RebindVfToDefaultDriver.
+func (mr *MockHostManagerInterfaceMockRecorder) RebindVfToDefaultDriver(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RebindVfToDefaultDriver", reflect.TypeOf((*MockHostManagerInterface)(nil).RebindVfToDefaultDriver), arg0)
+}
+
 // ReloadDriver mocks base method.
 func (m *MockHostManagerInterface) ReloadDriver(arg0 string) error {
 	m.ctrl.T.Helper()
@@ -198,6 +636,110 @@ func (m *MockHostManagerInterface) ReloadDriver(arg0 string) error {
 func (mr *MockHostManagerInterfaceMockRecorder) ReloadDriver(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReloadDriver", reflect.TypeOf((*MockHostManagerInterface)(nil).ReloadDriver), arg0)
+}
+
+// RemoveFromService mocks base method.
+func (m *MockHostManagerInterface) RemoveFromService(service *host.Service, options ...*unit.UnitOption) (*host.Service, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{service}
+	for _, a := range options {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RemoveFromService", varargs...)
+	ret0, _ := ret[0].(*host.Service)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveFromService indicates an expected call of RemoveFromService.
+func (mr *MockHostManagerInterfaceMockRecorder) RemoveFromService(service interface{}, options ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{service}, options...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromService", reflect.TypeOf((*MockHostManagerInterface)(nil).RemoveFromService), varargs...)
+}
+
+// RemoveUdevRule mocks base method.
+func (m *MockHostManagerInterface) RemoveUdevRule(arg0 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveUdevRule", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveUdevRule indicates an expected call of RemoveUdevRule.
+func (mr *MockHostManagerInterfaceMockRecorder) RemoveUdevRule(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUdevRule", reflect.TypeOf((*MockHostManagerInterface)(nil).RemoveUdevRule), arg0)
+}
+
+// ResetSriovDevice mocks base method.
+func (m *MockHostManagerInterface) ResetSriovDevice(arg0 v1.InterfaceExt) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetSriovDevice", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ResetSriovDevice indicates an expected call of ResetSriovDevice.
+func (mr *MockHostManagerInterfaceMockRecorder) ResetSriovDevice(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetSriovDevice", reflect.TypeOf((*MockHostManagerInterface)(nil).ResetSriovDevice), arg0)
+}
+
+// SetNetdevMTU mocks base method.
+func (m *MockHostManagerInterface) SetNetdevMTU(arg0 string, arg1 int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNetdevMTU", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetNetdevMTU indicates an expected call of SetNetdevMTU.
+func (mr *MockHostManagerInterfaceMockRecorder) SetNetdevMTU(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNetdevMTU", reflect.TypeOf((*MockHostManagerInterface)(nil).SetNetdevMTU), arg0, arg1)
+}
+
+// SetSriovNumVfs mocks base method.
+func (m *MockHostManagerInterface) SetSriovNumVfs(arg0 string, arg1 int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSriovNumVfs", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetSriovNumVfs indicates an expected call of SetSriovNumVfs.
+func (mr *MockHostManagerInterfaceMockRecorder) SetSriovNumVfs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSriovNumVfs", reflect.TypeOf((*MockHostManagerInterface)(nil).SetSriovNumVfs), arg0, arg1)
+}
+
+// SetVfAdminMac mocks base method.
+func (m *MockHostManagerInterface) SetVfAdminMac(arg0 string, arg1, arg2 netlink.Link) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetVfAdminMac", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetVfAdminMac indicates an expected call of SetVfAdminMac.
+func (mr *MockHostManagerInterfaceMockRecorder) SetVfAdminMac(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVfAdminMac", reflect.TypeOf((*MockHostManagerInterface)(nil).SetVfAdminMac), arg0, arg1, arg2)
+}
+
+// SetVfGUID mocks base method.
+func (m *MockHostManagerInterface) SetVfGUID(arg0 string, arg1 netlink.Link) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetVfGUID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetVfGUID indicates an expected call of SetVfGUID.
+func (mr *MockHostManagerInterfaceMockRecorder) SetVfGUID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVfGUID", reflect.TypeOf((*MockHostManagerInterface)(nil).SetVfGUID), arg0, arg1)
 }
 
 // TriggerUdevEvent mocks base method.
@@ -251,4 +793,90 @@ func (m *MockHostManagerInterface) TryEnableVhostNet() {
 func (mr *MockHostManagerInterfaceMockRecorder) TryEnableVhostNet() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryEnableVhostNet", reflect.TypeOf((*MockHostManagerInterface)(nil).TryEnableVhostNet))
+}
+
+// TryGetInterfaceName mocks base method.
+func (m *MockHostManagerInterface) TryGetInterfaceName(arg0 string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryGetInterfaceName", arg0)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// TryGetInterfaceName indicates an expected call of TryGetInterfaceName.
+func (mr *MockHostManagerInterfaceMockRecorder) TryGetInterfaceName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryGetInterfaceName", reflect.TypeOf((*MockHostManagerInterface)(nil).TryGetInterfaceName), arg0)
+}
+
+// TryToGetVirtualInterfaceName mocks base method.
+func (m *MockHostManagerInterface) TryToGetVirtualInterfaceName(arg0 string) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TryToGetVirtualInterfaceName", arg0)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// TryToGetVirtualInterfaceName indicates an expected call of TryToGetVirtualInterfaceName.
+func (mr *MockHostManagerInterfaceMockRecorder) TryToGetVirtualInterfaceName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryToGetVirtualInterfaceName", reflect.TypeOf((*MockHostManagerInterface)(nil).TryToGetVirtualInterfaceName), arg0)
+}
+
+// Unbind mocks base method.
+func (m *MockHostManagerInterface) Unbind(arg0 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unbind", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Unbind indicates an expected call of Unbind.
+func (mr *MockHostManagerInterfaceMockRecorder) Unbind(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unbind", reflect.TypeOf((*MockHostManagerInterface)(nil).Unbind), arg0)
+}
+
+// UnbindDriverIfNeeded mocks base method.
+func (m *MockHostManagerInterface) UnbindDriverIfNeeded(arg0 string, arg1 bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnbindDriverIfNeeded", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnbindDriverIfNeeded indicates an expected call of UnbindDriverIfNeeded.
+func (mr *MockHostManagerInterfaceMockRecorder) UnbindDriverIfNeeded(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnbindDriverIfNeeded", reflect.TypeOf((*MockHostManagerInterface)(nil).UnbindDriverIfNeeded), arg0, arg1)
+}
+
+// VFIsReady mocks base method.
+func (m *MockHostManagerInterface) VFIsReady(arg0 string) (netlink.Link, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VFIsReady", arg0)
+	ret0, _ := ret[0].(netlink.Link)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// VFIsReady indicates an expected call of VFIsReady.
+func (mr *MockHostManagerInterfaceMockRecorder) VFIsReady(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VFIsReady", reflect.TypeOf((*MockHostManagerInterface)(nil).VFIsReady), arg0)
+}
+
+// WriteSwitchdevConfFile mocks base method.
+func (m *MockHostManagerInterface) WriteSwitchdevConfFile(arg0 *v1.SriovNetworkNodeState, arg1 map[string]bool) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteSwitchdevConfFile", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WriteSwitchdevConfFile indicates an expected call of WriteSwitchdevConfFile.
+func (mr *MockHostManagerInterfaceMockRecorder) WriteSwitchdevConfFile(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteSwitchdevConfFile", reflect.TypeOf((*MockHostManagerInterface)(nil).WriteSwitchdevConfFile), arg0, arg1)
 }
