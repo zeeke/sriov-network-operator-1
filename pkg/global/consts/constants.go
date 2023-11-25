@@ -1,0 +1,114 @@
+package consts
+
+import (
+	"fmt"
+	"time"
+)
+
+type DrainState string
+
+// PlatformTypes
+type PlatformTypes int
+
+const (
+	ResyncPeriod                       = 5 * time.Minute
+	DefaultConfigName                  = "default"
+	ConfigDaemonPath                   = "./bindata/manifests/daemon"
+	InjectorWebHookPath                = "./bindata/manifests/webhook"
+	OperatorWebHookPath                = "./bindata/manifests/operator-webhook"
+	SystemdServiceOcpPath              = "./bindata/manifests/sriov-config-service/openshift"
+	SystemdServiceOcpMachineConfigName = "sriov-config-service"
+	ServiceCAConfigMapAnnotation       = "service.beta.openshift.io/inject-cabundle"
+	InjectorWebHookName                = "network-resources-injector-config"
+	OperatorWebHookName                = "sriov-operator-webhook-config"
+	DeprecatedOperatorWebHookName      = "operator-webhook-config"
+	PluginPath                         = "./bindata/manifests/plugins"
+	DaemonPath                         = "./bindata/manifests/daemon"
+	DefaultPolicyName                  = "default"
+	ConfigMapName                      = "device-plugin-config"
+	DaemonSet                          = "DaemonSet"
+	ServiceAccount                     = "ServiceAccount"
+	DPConfigFileName                   = "config.json"
+	OVSHWOLMachineConfigNameSuffix     = "ovs-hw-offload"
+
+	LinkTypeEthernet   = "ether"
+	LinkTypeInfiniband = "infiniband"
+
+	LinkTypeIB  = "IB"
+	LinkTypeETH = "ETH"
+
+	DeviceTypeVfioPci   = "vfio-pci"
+	DeviceTypeNetDevice = "netdevice"
+	VdpaTypeVirtio      = "virtio"
+	VdpaTypeVhost       = "vhost"
+
+	ClusterTypeOpenshift  = "openshift"
+	ClusterTypeKubernetes = "kubernetes"
+
+	SriovConfBasePath          = "/etc/sriov-operator"
+	PfAppliedConfig            = SriovConfBasePath + "/pci"
+	SriovSwitchDevConfPath     = SriovConfBasePath + "/sriov_config.json"
+	SriovHostSwitchDevConfPath = "/host" + SriovSwitchDevConfPath
+
+	DrainAnnotationState         = "sriovnetwork.openshift.io/state"
+	DrainAnnotationStateRequired = "sriovnetwork.openshift.io/state-required"
+	DrainAnnotationTime          = "sriovnetwork.openshift.io/state-time"
+
+	DrainIdle        DrainState = "Idle"
+	DrainDisabled    DrainState = "Drain_Disabled"
+	DrainRequired    DrainState = "Drain_Required"
+	RebootRequired   DrainState = "Reboot_Required"
+	DrainMcpPausing  DrainState = "Draining_MCP_Pausing"
+	DrainMcpPaused   DrainState = "Draining_MCP_Paused"
+	Draining         DrainState = "Draining"
+	DrainingComplete DrainState = "Draining_Complete"
+	RebootComplete   DrainState = "Reboot_Complete"
+
+	SyncStatusSucceeded  = "Succeeded"
+	SyncStatusFailed     = "Failed"
+	SyncStatusInProgress = "InProgress"
+
+	MCPPauseAnnotationState = "sriovnetwork.openshift.io/state"
+	MCPPauseAnnotationTime  = "sriovnetwork.openshift.io/time"
+
+	CheckpointFileName = "sno-initial-node-state.json"
+	Unknown            = "Unknown"
+
+	SysBusPciDevices      = "/sys/bus/pci/devices"
+	SysBusPciDrivers      = "/sys/bus/pci/drivers"
+	SysBusPciDriversProbe = "/sys/bus/pci/drivers_probe"
+	SysClassNet           = "/sys/class/net"
+	ProcKernelCmdLine     = "/proc/cmdline"
+	NetClass              = 0x02
+	NumVfsFile            = "sriov_numvfs"
+
+	UdevFolder          = "/etc/udev"
+	UdevRulesFolder     = UdevFolder + "/rules.d"
+	HostUdevRulesFolder = "/host" + UdevRulesFolder
+	UdevDisableNM       = "/bindata/scripts/udev-find-sriov-pf.sh"
+	NMUdevRule          = "SUBSYSTEM==\"net\", ACTION==\"add|change|move\", ATTRS{device}==\"%s\", IMPORT{program}=\"/etc/udev/disable-nm-sriov.sh $env{INTERFACE} %s\""
+
+	KernelArgPciRealloc = "pci=realloc"
+	KernelArgIntelIommu = "intel_iommu=on"
+	KernelArgIommuPt    = "iommu=pt"
+
+	Chroot = "/host"
+)
+
+const (
+	// Baremetal platform
+	Baremetal PlatformTypes = iota
+	// VirtualOpenStack platform
+	VirtualOpenStack
+)
+
+func (e PlatformTypes) String() string {
+	switch e {
+	case Baremetal:
+		return "Baremetal"
+	case VirtualOpenStack:
+		return "Virtual/Openstack"
+	default:
+		return fmt.Sprintf("%d", int(e))
+	}
+}
