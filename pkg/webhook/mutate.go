@@ -7,7 +7,7 @@ import (
 	v1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
+	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
 )
 
 var (

@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	. "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
+	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
 
 	fakesnclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned/fake"
 )

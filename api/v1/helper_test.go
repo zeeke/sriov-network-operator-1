@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
 )
 
 var update = flag.Bool("updategolden", false, "update .golden files")

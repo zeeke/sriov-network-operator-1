@@ -13,7 +13,7 @@ import (
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
+	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
 )
 
 var _ = Describe("Operator", func() {

@@ -20,6 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/render"
 )
 
@@ -46,6 +48,8 @@ var log = logf.Log.WithName("sriovnetwork")
 // NicIDMap contains supported mapping of IDs with each in the format of:
 // Vendor ID, Physical Function Device ID, Virtual Function Device ID
 var NicIDMap = []string{}
+
+var InitialState SriovNetworkNodeState
 
 // NetFilterType Represents the NetFilter tags to be used
 type NetFilterType int
@@ -209,6 +213,80 @@ func GetVfDeviceID(deviceID string) string {
 		}
 	}
 	return ""
+}
+
+func IsSwitchdevModeSpec(spec SriovNetworkNodeStateSpec) bool {
+	for _, iface := range spec.Interfaces {
+		if iface.EswitchMode == ESwithModeSwitchDev {
+			return true
+		}
+	}
+	return false
+}
+
+func FindInterface(interfaces Interfaces, name string) (iface Interface, err error) {
+	for _, i := range interfaces {
+		if i.Name == name {
+			return i, nil
+		}
+	}
+	return Interface{}, fmt.Errorf("unable to find interface: %v", name)
+}
+
+func NeedToUpdateSriov(iface *Interface, ifaceStatus *InterfaceExt) bool {
+	if iface.Mtu > 0 {
+		mtu := iface.Mtu
+		if mtu != ifaceStatus.Mtu {
+			log.V(2).Info("NeedUpdate(): MTU needs update", "desired", mtu, "current", ifaceStatus.Mtu)
+			return true
+		}
+	}
+
+	if iface.NumVfs != ifaceStatus.NumVfs {
+		log.V(2).Info("NeedUpdate(): NumVfs needs update", "desired", iface.NumVfs, "current", ifaceStatus.NumVfs)
+		return true
+	}
+	if iface.NumVfs > 0 {
+		for _, vf := range ifaceStatus.VFs {
+			ingroup := false
+			for _, group := range iface.VfGroups {
+				if IndexInRange(vf.VfID, group.VfRange) {
+					ingroup = true
+					if group.DeviceType != consts.DeviceTypeNetDevice {
+						if group.DeviceType != vf.Driver {
+							log.V(2).Info("NeedUpdate(): Driver needs update",
+								"desired", group.DeviceType, "current", vf.Driver)
+							return true
+						}
+					} else {
+						if StringInArray(vf.Driver, vars.DpdkDrivers) {
+							log.V(2).Info("NeedUpdate(): Driver needs update",
+								"desired", group.DeviceType, "current", vf.Driver)
+							return true
+						}
+						if vf.Mtu != 0 && group.Mtu != 0 && vf.Mtu != group.Mtu {
+							log.V(2).Info("NeedUpdate(): VF MTU needs update",
+								"vf", vf.VfID, "desired", group.Mtu, "current", vf.Mtu)
+							return true
+						}
+
+						// this is needed to be sure the admin mac address is configured as expected
+						if iface.ExternallyManaged {
+							log.V(2).Info("NeedUpdate(): need to update the device as it's externally manage",
+								"device", ifaceStatus.PciAddress)
+							return true
+						}
+					}
+					break
+				}
+			}
+			if !ingroup && StringInArray(vf.Driver, vars.DpdkDrivers) {
+				// VF which has DPDK driver loaded but not in any group, needs to be reset to default driver.
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type ByPriority []SriovNetworkNodePolicy

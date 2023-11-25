@@ -27,6 +27,9 @@ import (
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -46,7 +49,7 @@ import (
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/controllers"
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
+	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/leaderelection"
 	snolog "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/log"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
@@ -87,12 +90,6 @@ func main() {
 	kubeClient, err := client.New(restConfig, client.Options{Scheme: scheme})
 	if err != nil {
 		setupLog.Error(err, "couldn't create client")
-		os.Exit(1)
-	}
-
-	openshiftContext, err := utils.NewOpenshiftContext(restConfig, scheme)
-	if err != nil {
-		setupLog.Error(err, "couldn't create openshift context")
 		os.Exit(1)
 	}
 
@@ -137,6 +134,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initial global info
+	vars.Config = restConfig
+	vars.Scheme = mgrGlobal.GetScheme()
+
+	platformsHelper, err := platforms.NewDefaultPlatformHelper()
+	if err != nil {
+		setupLog.Error(err, "couldn't create openshift context")
+		os.Exit(1)
+	}
+
 	if err = (&controllers.SriovNetworkReconciler{
 		Client: mgrGlobal.GetClient(),
 		Scheme: mgrGlobal.GetScheme(),
@@ -159,17 +166,17 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.SriovOperatorConfigReconciler{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		OpenshiftContext: openshiftContext,
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		PlatformHelper: platformsHelper,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SriovOperatorConfig")
 		os.Exit(1)
 	}
 	if err = (&controllers.SriovNetworkPoolConfigReconciler{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		OpenshiftContext: openshiftContext,
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		PlatformHelper: platformsHelper,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SriovNetworkPoolConfig")
 		os.Exit(1)

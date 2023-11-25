@@ -39,12 +39,12 @@ import (
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	snclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned"
 	sninformer "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/informers/externalversions"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
 	snolog "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/log"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms"
 	plugin "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/service"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/systemd"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 )
 
 const (
@@ -62,26 +62,17 @@ type Message struct {
 }
 
 type Daemon struct {
-	// name is the node name.
-	name string
-
-	platform utils.PlatformType
-
-	useSystemdService bool
-
-	devMode bool
-
 	client snclientset.Interface
 	// kubeClient allows interaction with Kubernetes, including the node we are running on.
 	kubeClient kubernetes.Interface
-
-	openshiftContext *utils.OpenshiftContext
 
 	nodeState *sriovnetworkv1.SriovNetworkNodeState
 
 	enabledPlugins map[string]plugin.VendorPlugin
 
-	serviceManager service.ServiceManager
+	HostHelpers plugin.HostHelpersInterface
+
+	platformHelpers *platforms.PlatformHelper
 
 	// channel used by callbacks to signal Run() of an error
 	exitCh chan<- error
@@ -109,22 +100,15 @@ type Daemon struct {
 
 	mcpName string
 
-	storeManager utils.StoreManagerInterface
-
-	hostManager host.HostManagerInterface
-
 	eventRecorder *EventRecorder
 }
 
 const (
-	udevScriptsPath      = "/bindata/scripts/load-udev.sh"
-	annoKey              = "sriovnetwork.openshift.io/state"
-	annoIdle             = "Idle"
-	annoDraining         = "Draining"
-	annoMcpPaused        = "Draining_MCP_Paused"
-	syncStatusSucceeded  = "Succeeded"
-	syncStatusFailed     = "Failed"
-	syncStatusInProgress = "InProgress"
+	udevScriptsPath = "/bindata/scripts/load-udev.sh"
+	annoKey         = "sriovnetwork.openshift.io/state"
+	annoIdle        = "Idle"
+	annoDraining    = "Draining"
+	annoMcpPaused   = "Draining_MCP_Paused"
 )
 
 var namespace = os.Getenv("NAMESPACE")
@@ -141,33 +125,26 @@ func (w writer) Write(p []byte) (n int, err error) {
 }
 
 func New(
-	nodeName string,
 	client snclientset.Interface,
 	kubeClient kubernetes.Interface,
-	openshiftContext *utils.OpenshiftContext,
+	vendorHelpers plugin.HostHelpersInterface,
+	platformHelper *platforms.PlatformHelper,
 	exitCh chan<- error,
 	stopCh <-chan struct{},
 	syncCh <-chan struct{},
 	refreshCh chan<- Message,
-	platformType utils.PlatformType,
-	useSystemdService bool,
 	er *EventRecorder,
-	devMode bool,
 ) *Daemon {
 	return &Daemon{
-		name:              nodeName,
-		platform:          platformType,
-		useSystemdService: useSystemdService,
-		devMode:           devMode,
-		client:            client,
-		kubeClient:        kubeClient,
-		openshiftContext:  openshiftContext,
-		serviceManager:    service.NewServiceManager("/host"),
-		exitCh:            exitCh,
-		stopCh:            stopCh,
-		syncCh:            syncCh,
-		refreshCh:         refreshCh,
-		nodeState:         &sriovnetworkv1.SriovNetworkNodeState{},
+		client:          client,
+		kubeClient:      kubeClient,
+		HostHelpers:     vendorHelpers,
+		platformHelpers: platformHelper,
+		exitCh:          exitCh,
+		stopCh:          stopCh,
+		syncCh:          syncCh,
+		refreshCh:       refreshCh,
+		nodeState:       &sriovnetworkv1.SriovNetworkNodeState{},
 		drainer: &drain.Helper{
 			Client:              kubeClient,
 			Force:               true,
@@ -195,38 +172,27 @@ func New(
 
 // Run the config daemon
 func (dn *Daemon) Run(stopCh <-chan struct{}, exitCh <-chan error) error {
-	log.Log.V(0).Info("Run()", "node", dn.name)
+	log.Log.V(0).Info("Run()", "node", vars.NodeName)
 
-	if utils.ClusterType == utils.ClusterTypeOpenshift {
-		log.Log.V(0).Info("Run(): start daemon.", "openshiftFlavor", dn.openshiftContext.OpenshiftFlavor)
+	if vars.ClusterType == consts.ClusterTypeOpenshift {
+		log.Log.V(0).Info("Run(): start daemon.", "openshiftFlavor", dn.platformHelpers.GetFlavor())
 	} else {
 		log.Log.V(0).Info("Run(): start daemon.")
 	}
 
-	if dn.useSystemdService {
+	if !vars.UsingSystemdMode {
 		log.Log.V(0).Info("Run(): daemon running in systemd mode")
-	}
-	// Only watch own SriovNetworkNodeState CR
-	defer utilruntime.HandleCrash()
-	defer dn.workqueue.ShutDown()
-
-	hostManager := host.NewHostManager(dn.useSystemdService)
-	dn.hostManager = hostManager
-	if !dn.useSystemdService {
-		dn.hostManager.TryEnableRdma()
-		dn.hostManager.TryEnableTun()
-		dn.hostManager.TryEnableVhostNet()
-		err := systemd.CleanSriovFilesFromHost(utils.ClusterType == utils.ClusterTypeOpenshift)
+		dn.HostHelpers.TryEnableRdma()
+		dn.HostHelpers.TryEnableTun()
+		dn.HostHelpers.TryEnableVhostNet()
+		err := systemd.CleanSriovFilesFromHost(vars.ClusterType == consts.ClusterTypeOpenshift)
 		if err != nil {
 			log.Log.Error(err, "failed to remove all the systemd sriov files")
 		}
 	}
-
-	storeManager, err := utils.NewStoreManager(false)
-	if err != nil {
-		return err
-	}
-	dn.storeManager = storeManager
+	// Only watch own SriovNetworkNodeState CR
+	defer utilruntime.HandleCrash()
+	defer dn.workqueue.ShutDown()
 
 	if err := dn.prepareNMUdevRule(); err != nil {
 		log.Log.Error(err, "failed to prepare udev files to disable network manager on requested VFs")
@@ -241,7 +207,7 @@ func (dn *Daemon) Run(stopCh <-chan struct{}, exitCh <-chan error) error {
 		time.Second*15,
 		namespace,
 		func(lo *metav1.ListOptions) {
-			lo.FieldSelector = "metadata.name=" + dn.name
+			lo.FieldSelector = "metadata.name=" + vars.NodeName
 			lo.TimeoutSeconds = &timeout
 		},
 	)
@@ -300,7 +266,7 @@ func (dn *Daemon) Run(stopCh <-chan struct{}, exitCh <-chan error) error {
 			log.Log.Error(err, "got an error")
 			if more {
 				dn.refreshCh <- Message{
-					syncStatus:    syncStatusFailed,
+					syncStatus:    consts.SyncStatusFailed,
 					lastSyncError: err.Error(),
 				}
 			}
@@ -358,7 +324,7 @@ func (dn *Daemon) processNextWorkItem() bool {
 		if err != nil {
 			// Ereport error message, and put the item back to work queue for retry.
 			dn.refreshCh <- Message{
-				syncStatus:    syncStatusFailed,
+				syncStatus:    consts.SyncStatusFailed,
 				lastSyncError: err.Error(),
 			}
 			<-dn.syncCh
@@ -384,9 +350,9 @@ func (dn *Daemon) nodeAddHandler(obj interface{}) {
 }
 
 func (dn *Daemon) nodeUpdateHandler(old, new interface{}) {
-	node, err := dn.nodeLister.Get(dn.name)
+	node, err := dn.nodeLister.Get(vars.NodeName)
 	if errors.IsNotFound(err) {
-		log.Log.V(2).Info("nodeUpdateHandler(): node has been deleted", "name", dn.name)
+		log.Log.V(2).Info("nodeUpdateHandler(): node has been deleted", "name", vars.NodeName)
 		return
 	}
 	dn.node = node.DeepCopy()
@@ -399,7 +365,7 @@ func (dn *Daemon) nodeUpdateHandler(old, new interface{}) {
 
 	// Checking if other nodes are draining
 	for _, otherNode := range nodes {
-		if otherNode.GetName() == dn.name {
+		if otherNode.GetName() == vars.NodeName {
 			continue
 		}
 
@@ -438,24 +404,24 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 	var err error
 	// Get the latest NodeState
 	var latestState *sriovnetworkv1.SriovNetworkNodeState
-	var sriovResult = &systemd.SriovResult{SyncStatus: syncStatusSucceeded, LastSyncError: ""}
-	latestState, err = dn.client.SriovnetworkV1().SriovNetworkNodeStates(namespace).Get(context.Background(), dn.name, metav1.GetOptions{})
+	var sriovResult = &systemd.SriovResult{SyncStatus: consts.SyncStatusSucceeded, LastSyncError: ""}
+	latestState, err = dn.client.SriovnetworkV1().SriovNetworkNodeStates(namespace).Get(context.Background(), vars.NodeName, metav1.GetOptions{})
 	if err != nil {
-		log.Log.Error(err, "nodeStateSyncHandler(): Failed to fetch node state", "name", dn.name)
+		log.Log.Error(err, "nodeStateSyncHandler(): Failed to fetch node state", "name", vars.NodeName)
 		return err
 	}
 	latest := latestState.GetGeneration()
 	log.Log.V(0).Info("nodeStateSyncHandler(): new generation", "generation", latest)
 
-	if utils.ClusterType == utils.ClusterTypeOpenshift && !dn.openshiftContext.IsHypershift() {
+	if vars.ClusterType == consts.ClusterTypeOpenshift && !dn.platformHelpers.IsHypershift() {
 		if err = dn.getNodeMachinePool(); err != nil {
 			return err
 		}
 	}
 
 	if dn.nodeState.GetGeneration() == latest {
-		if dn.useSystemdService {
-			serviceEnabled, err := dn.serviceManager.IsServiceEnabled(systemd.SriovServicePath)
+		if vars.UsingSystemdMode {
+			serviceEnabled, err := dn.HostHelpers.IsServiceEnabled(systemd.SriovServicePath)
 			if err != nil {
 				log.Log.Error(err, "nodeStateSyncHandler(): failed to check if sriov-config service exist on host")
 				return err
@@ -465,7 +431,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 			// this is only for k8s base environments, for openshift the sriov-operator creates a machine config to will apply
 			// the system service and reboot the node the config-daemon doesn't need to do anything.
 			if !serviceEnabled {
-				sriovResult = &systemd.SriovResult{SyncStatus: syncStatusFailed,
+				sriovResult = &systemd.SriovResult{SyncStatus: consts.SyncStatusFailed,
 					LastSyncError: "sriov-config systemd service is not available on node"}
 			} else {
 				sriovResult, err = systemd.ReadSriovResult()
@@ -474,12 +440,12 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 					return err
 				}
 			}
-			if sriovResult.LastSyncError != "" || sriovResult.SyncStatus == syncStatusFailed {
+			if sriovResult.LastSyncError != "" || sriovResult.SyncStatus == consts.SyncStatusFailed {
 				log.Log.Info("nodeStateSyncHandler(): sync failed systemd service error", "last-sync-error", sriovResult.LastSyncError)
 
 				// add the error but don't requeue
 				dn.refreshCh <- Message{
-					syncStatus:    syncStatusFailed,
+					syncStatus:    consts.SyncStatusFailed,
 					lastSyncError: sriovResult.LastSyncError,
 				}
 				<-dn.syncCh
@@ -488,9 +454,9 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 		}
 		log.Log.V(0).Info("nodeStateSyncHandler(): Interface not changed")
 		if latestState.Status.LastSyncError != "" ||
-			latestState.Status.SyncStatus != syncStatusSucceeded {
+			latestState.Status.SyncStatus != consts.SyncStatusSucceeded {
 			dn.refreshCh <- Message{
-				syncStatus:    syncStatusSucceeded,
+				syncStatus:    consts.SyncStatusSucceeded,
 				lastSyncError: "",
 			}
 			// wait for writer to refresh the status
@@ -501,7 +467,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 	}
 
 	if latestState.GetGeneration() == 1 && len(latestState.Spec.Interfaces) == 0 {
-		err = dn.storeManager.ClearPCIAddressFolder()
+		err = dn.HostHelpers.ClearPCIAddressFolder()
 		if err != nil {
 			log.Log.Error(err, "failed to clear the PCI address configuration")
 			return err
@@ -522,7 +488,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 	}
 
 	dn.refreshCh <- Message{
-		syncStatus:    syncStatusInProgress,
+		syncStatus:    consts.SyncStatusInProgress,
 		lastSyncError: "",
 	}
 	// wait for writer to refresh status then pull again the latest node state
@@ -531,16 +497,16 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 	// we need to load the latest status to our object
 	// if we don't do it we can have a race here where the user remove the virtual functions but the operator didn't
 	// trigger the refresh
-	updatedState, err := dn.client.SriovnetworkV1().SriovNetworkNodeStates(namespace).Get(context.Background(), dn.name, metav1.GetOptions{})
+	updatedState, err := dn.client.SriovnetworkV1().SriovNetworkNodeStates(namespace).Get(context.Background(), vars.NodeName, metav1.GetOptions{})
 	if err != nil {
-		log.Log.Error(err, "nodeStateSyncHandler(): Failed to fetch node state", "name", dn.name)
+		log.Log.Error(err, "nodeStateSyncHandler(): Failed to fetch node state", "name", vars.NodeName)
 		return err
 	}
 	latestState.Status = updatedState.Status
 
 	// load plugins if it has not loaded
 	if len(dn.enabledPlugins) == 0 {
-		dn.enabledPlugins, err = enablePlugins(dn.platform, dn.useSystemdService, latestState, dn.hostManager, dn.storeManager)
+		dn.enabledPlugins, err = enablePlugins(latestState, dn.HostHelpers)
 		if err != nil {
 			log.Log.Error(err, "nodeStateSyncHandler(): failed to enable vendor plugins")
 			return err
@@ -571,8 +537,9 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 	// When running using systemd check if the applied configuration is the latest one
 	// or there is a new config we need to apply
 	// When using systemd configuration we write the file
-	if dn.useSystemdService {
-		systemdConfModified, err := systemd.WriteConfFile(latestState, dn.devMode, dn.platform)
+	if vars.UsingSystemdMode {
+		log.Log.V(0).Info("nodeStateSyncHandler(): writing systemd config file to host")
+		systemdConfModified, err := systemd.WriteConfFile(latestState)
 		if err != nil {
 			log.Log.Error(err, "nodeStateSyncHandler(): failed to write configuration file for systemd mode")
 			return err
@@ -610,7 +577,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 			}
 		}
 	}
-	if dn.openshiftContext.IsOpenshiftCluster() && !dn.openshiftContext.IsHypershift() {
+	if dn.platformHelpers.IsOpenshiftCluster() && !dn.platformHelpers.IsHypershift() {
 		if err = dn.getNodeMachinePool(); err != nil {
 			return err
 		}
@@ -628,7 +595,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 			}
 		}
 
-		if dn.openshiftContext.IsOpenshiftCluster() && !dn.openshiftContext.IsHypershift() {
+		if dn.platformHelpers.IsOpenshiftCluster() && !dn.platformHelpers.IsHypershift() {
 			log.Log.Info("nodeStateSyncHandler(): pause MCP")
 			if err := dn.pauseMCP(); err != nil {
 				return err
@@ -645,7 +612,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 		}
 	}
 
-	if !reqReboot && !dn.useSystemdService {
+	if !reqReboot && !vars.UsingSystemdMode {
 		// For BareMetal machines apply the generic plugin
 		selectedPlugin, ok := dn.enabledPlugins[GenericPluginName]
 		if ok {
@@ -672,7 +639,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 	if reqReboot {
 		log.Log.Info("nodeStateSyncHandler(): reboot node")
 		dn.eventRecorder.SendEvent("RebootNode", "Reboot node has been initiated")
-		rebootNode()
+		dn.rebootNode()
 		return nil
 	}
 
@@ -689,7 +656,7 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 		}
 	} else {
 		if !dn.nodeHasAnnotation(annoKey, annoIdle) {
-			if err := dn.annotateNode(dn.name, annoIdle); err != nil {
+			if err := dn.annotateNode(vars.NodeName, annoIdle); err != nil {
 				log.Log.Error(err, "nodeStateSyncHandler(): failed to annotate node")
 				return err
 			}
@@ -697,14 +664,14 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 	}
 	log.Log.Info("nodeStateSyncHandler(): sync succeeded")
 	dn.nodeState = latestState.DeepCopy()
-	if dn.useSystemdService {
+	if vars.UsingSystemdMode {
 		dn.refreshCh <- Message{
 			syncStatus:    sriovResult.SyncStatus,
 			lastSyncError: sriovResult.LastSyncError,
 		}
 	} else {
 		dn.refreshCh <- Message{
-			syncStatus:    syncStatusSucceeded,
+			syncStatus:    consts.SyncStatusSucceeded,
 			lastSyncError: "",
 		}
 	}
@@ -739,16 +706,16 @@ func (dn *Daemon) completeDrain() error {
 		}
 	}
 
-	if dn.openshiftContext.IsOpenshiftCluster() && !dn.openshiftContext.IsHypershift() {
+	if dn.platformHelpers.IsOpenshiftCluster() && !dn.platformHelpers.IsHypershift() {
 		log.Log.Info("completeDrain(): resume MCP", "mcp-name", dn.mcpName)
 		pausePatch := []byte("{\"spec\":{\"paused\":false}}")
-		if _, err := dn.openshiftContext.McClient.MachineconfigurationV1().MachineConfigPools().Patch(context.Background(), dn.mcpName, types.MergePatchType, pausePatch, metav1.PatchOptions{}); err != nil {
+		if _, err := dn.platformHelpers.GetMcClient().MachineconfigurationV1().MachineConfigPools().Patch(context.Background(), dn.mcpName, types.MergePatchType, pausePatch, metav1.PatchOptions{}); err != nil {
 			log.Log.Error(err, "completeDrain(): failed to resume MCP", "mcp-name", dn.mcpName)
 			return err
 		}
 	}
 
-	if err := dn.annotateNode(dn.name, annoIdle); err != nil {
+	if err := dn.annotateNode(vars.NodeName, annoIdle); err != nil {
 		log.Log.Error(err, "completeDrain(): failed to annotate node")
 		return err
 	}
@@ -763,7 +730,7 @@ func (dn *Daemon) restartDevicePluginPod() error {
 	var podToDelete string
 	pods, err := dn.kubeClient.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: "app=sriov-device-plugin",
-		FieldSelector: "spec.nodeName=" + dn.name,
+		FieldSelector: "spec.nodeName=" + vars.NodeName,
 	})
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -812,9 +779,9 @@ func (dn *Daemon) restartDevicePluginPod() error {
 	return nil
 }
 
-func rebootNode() {
+func (dn *Daemon) rebootNode() {
 	log.Log.Info("rebootNode(): trigger node reboot")
-	exit, err := utils.Chroot("/host")
+	exit, err := dn.HostHelpers.Chroot("/host")
 	if err != nil {
 		log.Log.Error(err, "rebootNode(): chroot command failed")
 	}
@@ -837,7 +804,7 @@ func rebootNode() {
 func (dn *Daemon) annotateNode(node, value string) error {
 	log.Log.Info("annotateNode(): Annotate node", "name", node, "value", value)
 
-	oldNode, err := dn.kubeClient.CoreV1().Nodes().Get(context.Background(), dn.name, metav1.GetOptions{})
+	oldNode, err := dn.kubeClient.CoreV1().Nodes().Get(context.Background(), vars.NodeName, metav1.GetOptions{})
 	if err != nil {
 		log.Log.Error(err, "annotateNode(): Failed to get node, retrying", "name", node)
 		return err
@@ -863,7 +830,7 @@ func (dn *Daemon) annotateNode(node, value string) error {
 			return err
 		}
 		_, err = dn.kubeClient.CoreV1().Nodes().Patch(context.Background(),
-			dn.name,
+			vars.NodeName,
 			types.StrategicMergePatchType,
 			patchBytes,
 			metav1.PatchOptions{})
@@ -881,7 +848,7 @@ func (dn *Daemon) getNodeMachinePool() error {
 		log.Log.Error(nil, "getNodeMachinePool(): Failed to find the the desiredConfig Annotation")
 		return fmt.Errorf("getNodeMachinePool(): Failed to find the the desiredConfig Annotation")
 	}
-	mc, err := dn.openshiftContext.McClient.MachineconfigurationV1().MachineConfigs().Get(context.TODO(), desiredConfig, metav1.GetOptions{})
+	mc, err := dn.platformHelpers.GetMcClient().MachineconfigurationV1().MachineConfigs().Get(context.TODO(), desiredConfig, metav1.GetOptions{})
 	if err != nil {
 		log.Log.Error(err, "getNodeMachinePool(): Failed to get the desired Machine Config")
 		return err
@@ -907,7 +874,7 @@ func (dn *Daemon) getDrainLock(ctx context.Context, done chan bool) {
 		},
 		Client: dn.kubeClient.CoordinationV1(),
 		LockConfig: resourcelock.ResourceLockConfig{
-			Identity: dn.name,
+			Identity: vars.NodeName,
 		},
 	}
 
@@ -930,7 +897,7 @@ func (dn *Daemon) getDrainLock(ctx context.Context, done chan bool) {
 					}
 					if dn.drainable {
 						log.Log.V(2).Info("getDrainLock(): no other node is draining")
-						err = dn.annotateNode(dn.name, annoDraining)
+						err = dn.annotateNode(vars.NodeName, annoDraining)
 						if err != nil {
 							log.Log.Error(err, "getDrainLock(): failed to annotate node")
 							continue
@@ -952,7 +919,7 @@ func (dn *Daemon) pauseMCP() error {
 	log.Log.Info("pauseMCP(): pausing MCP")
 	var err error
 
-	mcpInformerFactory := mcfginformers.NewSharedInformerFactory(dn.openshiftContext.McClient,
+	mcpInformerFactory := mcfginformers.NewSharedInformerFactory(dn.platformHelpers.GetMcClient(),
 		time.Second*30,
 	)
 	mcpInformer := mcpInformerFactory.Machineconfiguration().V1().MachineConfigPools().Informer()
@@ -967,7 +934,7 @@ func (dn *Daemon) pauseMCP() error {
 			return
 		}
 		// Always get the latest object
-		newMcp, err := dn.openshiftContext.McClient.MachineconfigurationV1().MachineConfigPools().Get(ctx, dn.mcpName, metav1.GetOptions{})
+		newMcp, err := dn.platformHelpers.GetMcClient().MachineconfigurationV1().MachineConfigPools().Get(ctx, dn.mcpName, metav1.GetOptions{})
 		if err != nil {
 			log.Log.V(2).Error(err, "pauseMCP(): Failed to get MCP", "mcp-name", dn.mcpName)
 			return
@@ -987,12 +954,12 @@ func (dn *Daemon) pauseMCP() error {
 			}
 			log.Log.Info("pauseMCP(): pause MCP", "mcp-name", dn.mcpName)
 			pausePatch := []byte("{\"spec\":{\"paused\":true}}")
-			_, err = dn.openshiftContext.McClient.MachineconfigurationV1().MachineConfigPools().Patch(context.Background(), dn.mcpName, types.MergePatchType, pausePatch, metav1.PatchOptions{})
+			_, err = dn.platformHelpers.GetMcClient().MachineconfigurationV1().MachineConfigPools().Patch(context.Background(), dn.mcpName, types.MergePatchType, pausePatch, metav1.PatchOptions{})
 			if err != nil {
 				log.Log.V(2).Error(err, "pauseMCP(): failed to pause MCP", "mcp-name", dn.mcpName)
 				return
 			}
-			err = dn.annotateNode(dn.name, annoMcpPaused)
+			err = dn.annotateNode(vars.NodeName, annoMcpPaused)
 			if err != nil {
 				log.Log.V(2).Error(err, "pauseMCP(): Failed to annotate node")
 				return
@@ -1003,12 +970,12 @@ func (dn *Daemon) pauseMCP() error {
 		if paused {
 			log.Log.Info("pauseMCP(): MCP is processing, resume MCP", "mcp-name", dn.mcpName)
 			pausePatch := []byte("{\"spec\":{\"paused\":false}}")
-			_, err = dn.openshiftContext.McClient.MachineconfigurationV1().MachineConfigPools().Patch(context.Background(), dn.mcpName, types.MergePatchType, pausePatch, metav1.PatchOptions{})
+			_, err = dn.platformHelpers.GetMcClient().MachineconfigurationV1().MachineConfigPools().Patch(context.Background(), dn.mcpName, types.MergePatchType, pausePatch, metav1.PatchOptions{})
 			if err != nil {
 				log.Log.V(2).Error(err, "pauseMCP(): fail to resume MCP", "mcp-name", dn.mcpName)
 				return
 			}
-			err = dn.annotateNode(dn.name, annoDraining)
+			err = dn.annotateNode(vars.NodeName, annoDraining)
 			if err != nil {
 				log.Log.V(2).Error(err, "pauseMCP(): Failed to annotate node")
 				return
@@ -1057,7 +1024,7 @@ func (dn *Daemon) drainNode() error {
 			log.Log.Error(err, "cordon failed, retrying")
 			return false, nil
 		}
-		err = drain.RunNodeDrain(dn.drainer, dn.name)
+		err = drain.RunNodeDrain(dn.drainer, vars.NodeName)
 		if err == nil {
 			return true, nil
 		}
@@ -1077,28 +1044,29 @@ func (dn *Daemon) drainNode() error {
 	return nil
 }
 
+// TODO: move this to host interface
 func (dn *Daemon) tryCreateSwitchdevUdevRule() error {
 	log.Log.V(2).Info("tryCreateSwitchdevUdevRule()")
 	nodeState, nodeStateErr := dn.client.SriovnetworkV1().SriovNetworkNodeStates(namespace).Get(
 		context.Background(),
-		dn.name,
+		vars.NodeName,
 		metav1.GetOptions{},
 	)
 	if nodeStateErr != nil {
-		log.Log.Error(nodeStateErr, "could not fetch node state, skip updating switchdev udev rules", "name", dn.name)
+		log.Log.Error(nodeStateErr, "could not fetch node state, skip updating switchdev udev rules", "name", vars.NodeName)
 		return nil
 	}
 
 	var newContent string
-	filePath := path.Join(utils.FilesystemRoot, "/host/etc/udev/rules.d/20-switchdev.rules")
+	filePath := path.Join(vars.FilesystemRoot, "/host/etc/udev/rules.d/20-switchdev.rules")
 
 	for _, ifaceStatus := range nodeState.Status.Interfaces {
 		if ifaceStatus.EswitchMode == sriovnetworkv1.ESwithModeSwitchDev {
-			switchID, err := utils.GetPhysSwitchID(ifaceStatus.Name)
+			switchID, err := dn.HostHelpers.GetPhysSwitchID(ifaceStatus.Name)
 			if err != nil {
 				return err
 			}
-			portName, err := utils.GetPhysPortName(ifaceStatus.Name)
+			portName, err := dn.HostHelpers.GetPhysPortName(ifaceStatus.Name)
 			if err != nil {
 				return err
 			}
@@ -1126,7 +1094,7 @@ func (dn *Daemon) tryCreateSwitchdevUdevRule() error {
 	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("/bin/bash", path.Join(utils.FilesystemRoot, udevScriptsPath))
+	cmd := exec.Command("/bin/bash", path.Join(vars.FilesystemRoot, udevScriptsPath))
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -1158,5 +1126,5 @@ func (dn *Daemon) prepareNMUdevRule() error {
 		supportedVfIds = append(supportedVfIds, vfID)
 	}
 
-	return utils.PrepareNMUdevRule(supportedVfIds)
+	return dn.HostHelpers.PrepareNMUdevRule(supportedVfIds)
 }
