@@ -43,6 +43,8 @@ import (
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
+
+	mcclientset "github.com/openshift/machine-config-operator/pkg/generated/clientset/versioned"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -55,6 +57,8 @@ var (
 
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	testOpenshiftContext *utils.OpenshiftContext
 )
 
 // Define utility constants for object names and testing timeouts/durations and intervals.
@@ -118,6 +122,12 @@ var _ = BeforeSuite(func(done Done) {
 		return []string{o.(*sriovnetworkv1.SriovIBNetwork).Spec.NetworkNamespace}
 	})
 
+	testOpenshiftContext = &utils.OpenshiftContext{
+		IsOpenShiftCluster: false,
+		OpenshiftFlavor:    utils.OpenshiftFlavorDefault,
+		McClient:           mcclientset.NewForConfigOrDie(cfg),
+	}
+
 	err = (&SriovNetworkReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
@@ -133,20 +143,20 @@ var _ = BeforeSuite(func(done Done) {
 	err = (&SriovOperatorConfigReconciler{
 		Client:           k8sManager.GetClient(),
 		Scheme:           k8sManager.GetScheme(),
-		OpenshiftContext: &utils.OpenshiftContext{OpenshiftFlavor: utils.OpenshiftFlavorDefault},
+		OpenshiftContext: testOpenshiftContext,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&SriovNetworkPoolConfigReconciler{
 		Client:           k8sManager.GetClient(),
 		Scheme:           k8sManager.GetScheme(),
-		OpenshiftContext: &utils.OpenshiftContext{OpenshiftFlavor: utils.OpenshiftFlavorDefault},
+		OpenshiftContext: testOpenshiftContext,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	kubeclient := kubernetes.NewForConfigOrDie(k8sManager.GetConfig())
 
-	drainController, err := NewDrainReconcileController(k8sManager.GetClient(), k8sManager.GetScheme(), kubeclient, &utils.OpenshiftContext{OpenshiftFlavor: utils.OpenshiftFlavorDefault})
+	drainController, err := NewDrainReconcileController(k8sManager.GetClient(), k8sManager.GetScheme(), kubeclient, testOpenshiftContext)
 	Expect(err).ToNot(HaveOccurred())
 	err = drainController.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
@@ -209,6 +219,9 @@ var _ = BeforeSuite(func(done Done) {
 	poolConfig.SetName(constants.DefaultConfigName)
 	poolConfig.Spec = sriovnetworkv1.SriovNetworkPoolConfigSpec{}
 	Expect(k8sClient.Create(context.TODO(), poolConfig)).Should(Succeed())
+
+	time.Sleep(300 * time.Millisecond)
+
 	close(done)
 })
 
