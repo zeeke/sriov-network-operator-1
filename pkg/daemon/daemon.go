@@ -72,7 +72,7 @@ type Daemon struct {
 
 	HostHelpers plugin.HostHelpersInterface
 
-	platformHelpers *platforms.PlatformHelper
+	platformHelpers platforms.PlatformHelperInterface
 
 	// channel used by callbacks to signal Run() of an error
 	exitCh chan<- error
@@ -128,7 +128,7 @@ func New(
 	client snclientset.Interface,
 	kubeClient kubernetes.Interface,
 	vendorHelpers plugin.HostHelpersInterface,
-	platformHelper *platforms.PlatformHelper,
+	platformHelper platforms.PlatformHelperInterface,
 	exitCh chan<- error,
 	stopCh <-chan struct{},
 	syncCh <-chan struct{},
