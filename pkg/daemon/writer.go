@@ -16,10 +16,10 @@ import (
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	snclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms/openstack"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
 const (

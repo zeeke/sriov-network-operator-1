@@ -10,9 +10,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
 	plugins "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
 var PluginName = "k8s_plugin"

@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 )
 
 var (

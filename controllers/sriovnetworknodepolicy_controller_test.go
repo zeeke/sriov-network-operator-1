@@ -17,7 +17,7 @@ import (
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	v1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 )
 
 func TestNodeSelectorMerge(t *testing.T) {

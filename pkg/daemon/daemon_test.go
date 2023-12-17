@@ -19,12 +19,12 @@ import (
 
 	snclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned"
 	fakesnclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned/fake"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms/openshift"
 	plugin "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins/fake"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins/generic"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
 var FakeSupportedNicIDs corev1.ConfigMap = corev1.ConfigMap{

@@ -43,7 +43,7 @@ import (
 
 	//+kubebuilder:scaffold:imports
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	mock_platforms "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms/mock"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms/openshift"
 )

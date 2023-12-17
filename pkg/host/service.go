@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 )
 
 // TODO: handle this to support unit-tests

@@ -38,12 +38,12 @@ import (
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	snclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/daemon"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
 	snolog "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/log"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms"
 	plugin "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
 var (

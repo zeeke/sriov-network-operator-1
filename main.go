@@ -27,8 +27,8 @@ import (
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -49,7 +49,7 @@ import (
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/controllers"
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/leaderelection"
 	snolog "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/log"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"

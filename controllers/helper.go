@@ -22,7 +22,7 @@ import (
 	"os"
 	"strings"
 
-	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
+	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 )
 
 var webhooks = map[string](string){

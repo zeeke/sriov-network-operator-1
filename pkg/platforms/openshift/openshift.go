@@ -4,9 +4,9 @@ import (
 	mcclientset "github.com/openshift/machine-config-operator/pkg/generated/clientset/versioned"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
 // OpenshiftFlavor holds metadata about the type of Openshift environment the operator is in.

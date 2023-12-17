@@ -39,12 +39,12 @@ import (
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	apply "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/apply"
-	consts "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/consts"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/global/vars"
+	consts "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	snolog "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/log"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms"
 	render "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/render"
 	utils "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
 // SriovOperatorConfigReconciler reconciles a SriovOperatorConfig object
