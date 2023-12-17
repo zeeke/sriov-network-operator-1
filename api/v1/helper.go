@@ -233,45 +233,45 @@ func FindInterface(interfaces Interfaces, name string) (iface Interface, err err
 	return Interface{}, fmt.Errorf("unable to find interface: %v", name)
 }
 
-func NeedToUpdateSriov(iface *Interface, ifaceStatus *InterfaceExt) bool {
-	if iface.Mtu > 0 {
-		mtu := iface.Mtu
+func NeedToUpdateSriov(ifaceSpec *Interface, ifaceStatus *InterfaceExt) bool {
+	if ifaceSpec.Mtu > 0 {
+		mtu := ifaceSpec.Mtu
 		if mtu != ifaceStatus.Mtu {
 			log.V(2).Info("NeedUpdate(): MTU needs update", "desired", mtu, "current", ifaceStatus.Mtu)
 			return true
 		}
 	}
 
-	if iface.NumVfs != ifaceStatus.NumVfs {
-		log.V(2).Info("NeedUpdate(): NumVfs needs update", "desired", iface.NumVfs, "current", ifaceStatus.NumVfs)
+	if ifaceSpec.NumVfs != ifaceStatus.NumVfs {
+		log.V(2).Info("NeedUpdate(): NumVfs needs update", "desired", ifaceSpec.NumVfs, "current", ifaceStatus.NumVfs)
 		return true
 	}
-	if iface.NumVfs > 0 {
-		for _, vf := range ifaceStatus.VFs {
+	if ifaceSpec.NumVfs > 0 {
+		for _, vfStatus := range ifaceStatus.VFs {
 			ingroup := false
-			for _, group := range iface.VfGroups {
-				if IndexInRange(vf.VfID, group.VfRange) {
+			for _, groupSpec := range ifaceSpec.VfGroups {
+				if IndexInRange(vfStatus.VfID, groupSpec.VfRange) {
 					ingroup = true
-					if group.DeviceType != consts.DeviceTypeNetDevice {
-						if group.DeviceType != vf.Driver {
+					if groupSpec.DeviceType != consts.DeviceTypeNetDevice {
+						if groupSpec.DeviceType != vfStatus.Driver {
 							log.V(2).Info("NeedUpdate(): Driver needs update",
-								"desired", group.DeviceType, "current", vf.Driver)
+								"desired", groupSpec.DeviceType, "current", vfStatus.Driver)
 							return true
 						}
 					} else {
-						if StringInArray(vf.Driver, vars.DpdkDrivers) {
+						if StringInArray(vfStatus.Driver, vars.DpdkDrivers) {
 							log.V(2).Info("NeedUpdate(): Driver needs update",
-								"desired", group.DeviceType, "current", vf.Driver)
+								"desired", groupSpec.DeviceType, "current", vfStatus.Driver)
 							return true
 						}
-						if vf.Mtu != 0 && group.Mtu != 0 && vf.Mtu != group.Mtu {
+						if vfStatus.Mtu != 0 && groupSpec.Mtu != 0 && vfStatus.Mtu != groupSpec.Mtu {
 							log.V(2).Info("NeedUpdate(): VF MTU needs update",
-								"vf", vf.VfID, "desired", group.Mtu, "current", vf.Mtu)
+								"vf", vfStatus.VfID, "desired", groupSpec.Mtu, "current", vfStatus.Mtu)
 							return true
 						}
 
 						// this is needed to be sure the admin mac address is configured as expected
-						if iface.ExternallyManaged {
+						if ifaceSpec.ExternallyManaged {
 							log.V(2).Info("NeedUpdate(): need to update the device as it's externally manage",
 								"device", ifaceStatus.PciAddress)
 							return true
@@ -280,7 +280,7 @@ func NeedToUpdateSriov(iface *Interface, ifaceStatus *InterfaceExt) bool {
 					break
 				}
 			}
-			if !ingroup && StringInArray(vf.Driver, vars.DpdkDrivers) {
+			if !ingroup && StringInArray(vfStatus.Driver, vars.DpdkDrivers) {
 				// VF which has DPDK driver loaded but not in any group, needs to be reset to default driver.
 				return true
 			}
