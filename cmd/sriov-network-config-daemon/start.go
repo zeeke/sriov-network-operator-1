@@ -78,9 +78,6 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 	if startOpts.systemd {
 		vars.UsingSystemdMode = true
 	}
-	// To help debugging, immediately log version
-	// TODO: we don't need this anymore as we don't update it
-	//setupLog.V(2).Info("sriov-network-config-daemon", "version", version.Version)
 
 	if startOpts.nodeName == "" {
 		name, ok := os.LookupEnv("NODE_NAME")
