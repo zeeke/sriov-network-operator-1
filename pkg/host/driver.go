@@ -15,7 +15,7 @@ import (
 )
 
 // Unbind unbind driver for one device
-func (h *HostManager) Unbind(pciAddr string) error {
+func (h *hostManager) Unbind(pciAddr string) error {
 	log.Log.V(2).Info("Unbind(): unbind device driver for device", "device", pciAddr)
 	yes, driver := h.HasDriver(pciAddr)
 	if !yes {
@@ -33,7 +33,7 @@ func (h *HostManager) Unbind(pciAddr string) error {
 
 // BindDpdkDriver bind dpdk driver for one device
 // Bind the device given by "pciAddr" to the driver "driver"
-func (h *HostManager) BindDpdkDriver(pciAddr, driver string) error {
+func (h *hostManager) BindDpdkDriver(pciAddr, driver string) error {
 	log.Log.V(2).Info("BindDpdkDriver(): bind device to driver",
 		"device", pciAddr, "driver", driver)
 
@@ -80,7 +80,7 @@ func (h *HostManager) BindDpdkDriver(pciAddr, driver string) error {
 
 // BindDefaultDriver bind driver for one device
 // Bind the device given by "pciAddr" to the default driver
-func (h *HostManager) BindDefaultDriver(pciAddr string) error {
+func (h *hostManager) BindDefaultDriver(pciAddr string) error {
 	log.Log.V(2).Info("BindDefaultDriver(): bind device to default driver", "device", pciAddr)
 
 	if yes, d := h.HasDriver(pciAddr); yes {
@@ -114,7 +114,7 @@ func (h *HostManager) BindDefaultDriver(pciAddr string) error {
 // Workaround function to handle a case where the vf default driver is stuck and not able to create the vf kernel interface.
 // This function unbind the VF from the default driver and try to bind it again
 // bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=2045087
-func (h *HostManager) RebindVfToDefaultDriver(vfAddr string) error {
+func (h *hostManager) RebindVfToDefaultDriver(vfAddr string) error {
 	log.Log.Info("RebindVfToDefaultDriver()", "vf", vfAddr)
 	if err := h.Unbind(vfAddr); err != nil {
 		return err
@@ -128,7 +128,7 @@ func (h *HostManager) RebindVfToDefaultDriver(vfAddr string) error {
 	return nil
 }
 
-func (h *HostManager) UnbindDriverIfNeeded(vfAddr string, isRdma bool) error {
+func (h *hostManager) UnbindDriverIfNeeded(vfAddr string, isRdma bool) error {
 	if isRdma {
 		log.Log.Info("UnbindDriverIfNeeded(): unbinding driver", "device", vfAddr)
 		if err := h.Unbind(vfAddr); err != nil {
@@ -139,7 +139,7 @@ func (h *HostManager) UnbindDriverIfNeeded(vfAddr string, isRdma bool) error {
 	return nil
 }
 
-func (h *HostManager) HasDriver(pciAddr string) (bool, string) {
+func (h *hostManager) HasDriver(pciAddr string) (bool, string) {
 	driver, err := dputils.GetDriverName(pciAddr)
 	if err != nil {
 		log.Log.V(2).Info("HasDriver(): device driver is empty for device", "device", pciAddr)

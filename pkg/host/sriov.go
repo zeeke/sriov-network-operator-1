@@ -23,7 +23,7 @@ import (
 	mlx "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vendors/mellanox"
 )
 
-func (h *HostManager) SetSriovNumVfs(pciAddr string, numVfs int) error {
+func (h *hostManager) SetSriovNumVfs(pciAddr string, numVfs int) error {
 	log.Log.V(2).Info("SetSriovNumVfs(): set NumVfs", "device", pciAddr, "numVfs", numVfs)
 	numVfsFilePath := filepath.Join(vars.FilesystemRoot, consts.SysBusPciDevices, pciAddr, consts.NumVfsFile)
 	bs := []byte(strconv.Itoa(numVfs))
@@ -40,7 +40,7 @@ func (h *HostManager) SetSriovNumVfs(pciAddr string, numVfs int) error {
 	return nil
 }
 
-func (h *HostManager) ResetSriovDevice(ifaceStatus sriovnetworkv1.InterfaceExt) error {
+func (h *hostManager) ResetSriovDevice(ifaceStatus sriovnetworkv1.InterfaceExt) error {
 	log.Log.V(2).Info("ResetSriovDevice(): reset SRIOV device", "address", ifaceStatus.PciAddress)
 	if err := h.SetSriovNumVfs(ifaceStatus.PciAddress, 0); err != nil {
 		return err
@@ -65,7 +65,7 @@ func (h *HostManager) ResetSriovDevice(ifaceStatus sriovnetworkv1.InterfaceExt) 
 	return nil
 }
 
-func (h *HostManager) GetVfInfo(pciAddr string, devices []*ghw.PCIDevice) sriovnetworkv1.VirtualFunction {
+func (h *hostManager) GetVfInfo(pciAddr string, devices []*ghw.PCIDevice) sriovnetworkv1.VirtualFunction {
 	driver, err := dputils.GetDriverName(pciAddr)
 	if err != nil {
 		log.Log.Error(err, "getVfInfo(): unable to parse device driver", "device", pciAddr)
@@ -99,7 +99,7 @@ func (h *HostManager) GetVfInfo(pciAddr string, devices []*ghw.PCIDevice) sriovn
 	return vf
 }
 
-func (h *HostManager) SetVfGUID(vfAddr string, pfLink netlink.Link) error {
+func (h *hostManager) SetVfGUID(vfAddr string, pfLink netlink.Link) error {
 	log.Log.Info("SetVfGUID()", "vf", vfAddr)
 	vfID, err := dputils.GetVFID(vfAddr)
 	if err != nil {
@@ -120,7 +120,7 @@ func (h *HostManager) SetVfGUID(vfAddr string, pfLink netlink.Link) error {
 	return nil
 }
 
-func (h *HostManager) VFIsReady(pciAddr string) (netlink.Link, error) {
+func (h *hostManager) VFIsReady(pciAddr string) (netlink.Link, error) {
 	log.Log.Info("VFIsReady()", "device", pciAddr)
 	var err error
 	var vfLink netlink.Link
@@ -138,7 +138,7 @@ func (h *HostManager) VFIsReady(pciAddr string) (netlink.Link, error) {
 	return vfLink, nil
 }
 
-func (h *HostManager) SetVfAdminMac(vfAddr string, pfLink, vfLink netlink.Link) error {
+func (h *hostManager) SetVfAdminMac(vfAddr string, pfLink, vfLink netlink.Link) error {
 	log.Log.Info("SetVfAdminMac()", "vf", vfAddr)
 
 	vfID, err := dputils.GetVFID(vfAddr)
@@ -154,7 +154,7 @@ func (h *HostManager) SetVfAdminMac(vfAddr string, pfLink, vfLink netlink.Link) 
 	return nil
 }
 
-func (h *HostManager) ConfigSriovDevice(iface *sriovnetworkv1.Interface, ifaceStatus *sriovnetworkv1.InterfaceExt) error {
+func (h *hostManager) ConfigSriovDevice(iface *sriovnetworkv1.Interface, ifaceStatus *sriovnetworkv1.InterfaceExt) error {
 	log.Log.V(2).Info("configSriovDevice(): configure sriov device",
 		"device", iface.PciAddress, "config", iface)
 	var err error
@@ -307,7 +307,7 @@ func (h *HostManager) ConfigSriovDevice(iface *sriovnetworkv1.Interface, ifaceSt
 	return nil
 }
 
-func (h *HostManager) ConfigSriovInterfaces(storeManager StoreManagerInterface, interfaces []sriovnetworkv1.Interface, ifaceStatuses []sriovnetworkv1.InterfaceExt, pfsToConfig map[string]bool) error {
+func (h *hostManager) ConfigSriovInterfaces(storeManager StoreManagerInterface, interfaces []sriovnetworkv1.Interface, ifaceStatuses []sriovnetworkv1.InterfaceExt, pfsToConfig map[string]bool) error {
 	if h.IsKernelLockdownMode() && mlx.HasMellanoxInterfacesInSpec(ifaceStatuses, interfaces) {
 		log.Log.Error(nil, "cannot use mellanox devices when in kernel lockdown mode")
 		return fmt.Errorf("cannot use mellanox devices when in kernel lockdown mode")
@@ -396,7 +396,7 @@ func (h *HostManager) ConfigSriovInterfaces(storeManager StoreManagerInterface, 
 	return nil
 }
 
-func (h *HostManager) ConfigSriovDeviceVirtual(iface *sriovnetworkv1.Interface) error {
+func (h *hostManager) ConfigSriovDeviceVirtual(iface *sriovnetworkv1.Interface) error {
 	log.Log.V(2).Info("ConfigSriovDeviceVirtual(): config interface", "address", iface.PciAddress, "config", iface)
 	// Config VFs
 	if iface.NumVfs > 0 {

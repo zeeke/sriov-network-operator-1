@@ -10,31 +10,31 @@ import (
 	gomock "github.com/golang/mock/gomock"
 )
 
-// MockUtilsInterface is a mock of UtilsInterface interface.
-type MockUtilsInterface struct {
+// MockCmdInterface is a mock of CmdInterface interface.
+type MockCmdInterface struct {
 	ctrl     *gomock.Controller
-	recorder *MockUtilsInterfaceMockRecorder
+	recorder *MockCmdInterfaceMockRecorder
 }
 
-// MockUtilsInterfaceMockRecorder is the mock recorder for MockUtilsInterface.
-type MockUtilsInterfaceMockRecorder struct {
-	mock *MockUtilsInterface
+// MockCmdInterfaceMockRecorder is the mock recorder for MockCmdInterface.
+type MockCmdInterfaceMockRecorder struct {
+	mock *MockCmdInterface
 }
 
-// NewMockUtilsInterface creates a new mock instance.
-func NewMockUtilsInterface(ctrl *gomock.Controller) *MockUtilsInterface {
-	mock := &MockUtilsInterface{ctrl: ctrl}
-	mock.recorder = &MockUtilsInterfaceMockRecorder{mock}
+// NewMockCmdInterface creates a new mock instance.
+func NewMockCmdInterface(ctrl *gomock.Controller) *MockCmdInterface {
+	mock := &MockCmdInterface{ctrl: ctrl}
+	mock.recorder = &MockCmdInterfaceMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockUtilsInterface) EXPECT() *MockUtilsInterfaceMockRecorder {
+func (m *MockCmdInterface) EXPECT() *MockCmdInterfaceMockRecorder {
 	return m.recorder
 }
 
 // Chroot mocks base method.
-func (m *MockUtilsInterface) Chroot(arg0 string) (func() error, error) {
+func (m *MockCmdInterface) Chroot(arg0 string) (func() error, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Chroot", arg0)
 	ret0, _ := ret[0].(func() error)
@@ -43,13 +43,13 @@ func (m *MockUtilsInterface) Chroot(arg0 string) (func() error, error) {
 }
 
 // Chroot indicates an expected call of Chroot.
-func (mr *MockUtilsInterfaceMockRecorder) Chroot(arg0 interface{}) *gomock.Call {
+func (mr *MockCmdInterfaceMockRecorder) Chroot(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Chroot", reflect.TypeOf((*MockUtilsInterface)(nil).Chroot), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Chroot", reflect.TypeOf((*MockCmdInterface)(nil).Chroot), arg0)
 }
 
 // RunCommand mocks base method.
-func (m *MockUtilsInterface) RunCommand(arg0 string, arg1 ...string) (string, string, error) {
+func (m *MockCmdInterface) RunCommand(arg0 string, arg1 ...string) (string, string, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0}
 	for _, a := range arg1 {
@@ -63,8 +63,8 @@ func (m *MockUtilsInterface) RunCommand(arg0 string, arg1 ...string) (string, st
 }
 
 // RunCommand indicates an expected call of RunCommand.
-func (mr *MockUtilsInterfaceMockRecorder) RunCommand(arg0 interface{}, arg1 ...interface{}) *gomock.Call {
+func (mr *MockCmdInterfaceMockRecorder) RunCommand(arg0 interface{}, arg1 ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{arg0}, arg1...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunCommand", reflect.TypeOf((*MockUtilsInterface)(nil).RunCommand), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunCommand", reflect.TypeOf((*MockCmdInterface)(nil).RunCommand), varargs...)
 }

@@ -20,19 +20,19 @@ import (
 )
 
 //go:generate ../../bin/mockgen -destination mock/mock_utils.go -source utils.go
-type UtilsInterface interface {
+type CmdInterface interface {
 	Chroot(string) (func() error, error)
 	RunCommand(string, ...string) (string, string, error)
 }
 
-type UtilsHelper struct {
+type utilsHelper struct {
 }
 
-func NewUtilsHelper() UtilsInterface {
-	return &UtilsHelper{}
+func New() CmdInterface {
+	return &utilsHelper{}
 }
 
-func (u *UtilsHelper) Chroot(path string) (func() error, error) {
+func (u *utilsHelper) Chroot(path string) (func() error, error) {
 	root, err := os.Open("/")
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (u *UtilsHelper) Chroot(path string) (func() error, error) {
 }
 
 // RunCommand runs a command
-func (u *UtilsHelper) RunCommand(command string, args ...string) (string, string, error) {
+func (u *utilsHelper) RunCommand(command string, args ...string) (string, string, error) {
 	log.Log.Info("RunCommand()", "command", command, "args", args)
 	var stdout, stderr bytes.Buffer
 

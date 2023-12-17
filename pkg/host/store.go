@@ -26,7 +26,7 @@ type StoreManagerInterface interface {
 	WriteCheckpointFile(*sriovnetworkv1.SriovNetworkNodeState) error
 }
 
-type StoreManager struct {
+type storeManager struct {
 }
 
 // NewStoreManager: create the initial folders needed to store the info about the PF
@@ -36,7 +36,7 @@ func NewStoreManager() (StoreManagerInterface, error) {
 		return nil, err
 	}
 
-	return &StoreManager{}, nil
+	return &storeManager{}, nil
 }
 
 // createOperatorConfigFolderIfNeeded: create the operator base folder on the host
@@ -73,7 +73,7 @@ func createOperatorConfigFolderIfNeeded() error {
 }
 
 // ClearPCIAddressFolder: removes all the PFs storage information
-func (s *StoreManager) ClearPCIAddressFolder() error {
+func (s *storeManager) ClearPCIAddressFolder() error {
 	hostExtension := utils.GetHostExtension()
 	PfAppliedConfigUse := filepath.Join(hostExtension, consts.PfAppliedConfig)
 	_, err := os.Stat(PfAppliedConfigUse)
@@ -99,7 +99,7 @@ func (s *StoreManager) ClearPCIAddressFolder() error {
 
 // SaveLastPfAppliedStatus will save the PF object as a json into the /etc/sriov-operator/pci/<pci-address>
 // this function must be called after running the chroot function
-func (s *StoreManager) SaveLastPfAppliedStatus(PfInfo *sriovnetworkv1.Interface) error {
+func (s *storeManager) SaveLastPfAppliedStatus(PfInfo *sriovnetworkv1.Interface) error {
 	data, err := json.Marshal(PfInfo)
 	if err != nil {
 		log.Log.Error(err, "failed to marshal PF status", "status", *PfInfo)
@@ -114,7 +114,7 @@ func (s *StoreManager) SaveLastPfAppliedStatus(PfInfo *sriovnetworkv1.Interface)
 
 // LoadPfsStatus convert the /etc/sriov-operator/pci/<pci-address> json to pfstatus
 // returns false if the file doesn't exist.
-func (s *StoreManager) LoadPfsStatus(pciAddress string) (*sriovnetworkv1.Interface, bool, error) {
+func (s *storeManager) LoadPfsStatus(pciAddress string) (*sriovnetworkv1.Interface, bool, error) {
 	hostExtension := utils.GetHostExtension()
 	pathFile := filepath.Join(hostExtension, consts.PfAppliedConfig, pciAddress)
 	pfStatus := &sriovnetworkv1.Interface{}
@@ -136,7 +136,7 @@ func (s *StoreManager) LoadPfsStatus(pciAddress string) (*sriovnetworkv1.Interfa
 	return pfStatus, true, nil
 }
 
-func (s *StoreManager) GetCheckPointNodeState() (*sriovnetworkv1.SriovNetworkNodeState, error) {
+func (s *storeManager) GetCheckPointNodeState() (*sriovnetworkv1.SriovNetworkNodeState, error) {
 	log.Log.Info("getCheckPointNodeState()")
 	configdir := filepath.Join(vars.Destdir, consts.CheckpointFileName)
 	file, err := os.OpenFile(configdir, os.O_RDONLY, 0644)
@@ -154,7 +154,7 @@ func (s *StoreManager) GetCheckPointNodeState() (*sriovnetworkv1.SriovNetworkNod
 	return &sriovnetworkv1.InitialState, nil
 }
 
-func (s *StoreManager) WriteCheckpointFile(ns *sriovnetworkv1.SriovNetworkNodeState) error {
+func (s *storeManager) WriteCheckpointFile(ns *sriovnetworkv1.SriovNetworkNodeState) error {
 	configdir := filepath.Join(vars.Destdir, consts.CheckpointFileName)
 	file, err := os.OpenFile(configdir, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {

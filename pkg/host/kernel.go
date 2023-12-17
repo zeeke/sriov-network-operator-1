@@ -11,7 +11,7 @@ import (
 )
 
 // GetCurrentKernelArgs This retrieves the kernel cmd line arguments
-func (h *HostManager) GetCurrentKernelArgs() (string, error) {
+func (h *hostManager) GetCurrentKernelArgs() (string, error) {
 	path := consts.ProcKernelCmdLine
 	if !vars.UsingSystemdMode {
 		path = filepath.Join("/host", path)
@@ -27,7 +27,7 @@ func (h *HostManager) GetCurrentKernelArgs() (string, error) {
 
 // IsKernelArgsSet This checks if the kernel cmd line is set properly. Please note that the same key could be repeated
 // several times in the kernel cmd line. We can only ensure that the kernel cmd line has the key/val kernel arg that we set.
-func (h *HostManager) IsKernelArgsSet(cmdLine string, karg string) bool {
+func (h *hostManager) IsKernelArgsSet(cmdLine string, karg string) bool {
 	elements := strings.Fields(cmdLine)
 	for _, element := range elements {
 		if element == karg {

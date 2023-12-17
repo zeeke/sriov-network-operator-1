@@ -63,10 +63,10 @@ type MellanoxInterface interface {
 }
 
 type mellanoxHelper struct {
-	utils utils.UtilsInterface
+	utils utils.CmdInterface
 }
 
-func New(utilsHelper utils.UtilsInterface) MellanoxInterface {
+func New(utilsHelper utils.CmdInterface) MellanoxInterface {
 	return &mellanoxHelper{
 		utils: utilsHelper,
 	}

@@ -54,7 +54,7 @@ type ScriptManifestFile struct {
 }
 
 // IsServiceExist check if service unit exist
-func (h *HostManager) IsServiceExist(servicePath string) (bool, error) {
+func (h *hostManager) IsServiceExist(servicePath string) (bool, error) {
 	_, err := os.Stat(path.Join(consts.Chroot, servicePath))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -67,7 +67,7 @@ func (h *HostManager) IsServiceExist(servicePath string) (bool, error) {
 }
 
 // IsServiceEnabled check if service exist and enabled
-func (h *HostManager) IsServiceEnabled(servicePath string) (bool, error) {
+func (h *hostManager) IsServiceEnabled(servicePath string) (bool, error) {
 	exist, err := h.IsServiceExist(servicePath)
 	if err != nil || !exist {
 		return false, err
@@ -86,7 +86,7 @@ func (h *HostManager) IsServiceEnabled(servicePath string) (bool, error) {
 }
 
 // ReadService read service from given path
-func (h *HostManager) ReadService(servicePath string) (*Service, error) {
+func (h *hostManager) ReadService(servicePath string) (*Service, error) {
 	data, err := os.ReadFile(path.Join(consts.Chroot, servicePath))
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (h *HostManager) ReadService(servicePath string) (*Service, error) {
 }
 
 // EnableService creates service file and enables it with systemctl enable
-func (h *HostManager) EnableService(service *Service) error {
+func (h *hostManager) EnableService(service *Service) error {
 	// Write service file
 	err := os.WriteFile(path.Join(consts.Chroot, service.Path), []byte(service.Content), 0644)
 	if err != nil {
@@ -120,7 +120,7 @@ func (h *HostManager) EnableService(service *Service) error {
 }
 
 // CompareServices compare 2 service and return true if serviceA has all the fields of serviceB
-func (h *HostManager) CompareServices(serviceA, serviceB *Service) (bool, error) {
+func (h *hostManager) CompareServices(serviceA, serviceB *Service) (bool, error) {
 	optsA, err := unit.Deserialize(strings.NewReader(serviceA.Content))
 	if err != nil {
 		return false, err
@@ -145,7 +145,7 @@ OUTER:
 }
 
 // RemoveFromService removes given fields from service
-func (h *HostManager) RemoveFromService(service *Service, options ...*unit.UnitOption) (*Service, error) {
+func (h *hostManager) RemoveFromService(service *Service, options ...*unit.UnitOption) (*Service, error) {
 	opts, err := unit.Deserialize(strings.NewReader(service.Content))
 	if err != nil {
 		return nil, err
@@ -175,37 +175,8 @@ OUTER:
 	}, nil
 }
 
-// AppendToService appends given fields to service
-func AppendToService(service *Service, options ...*unit.UnitOption) (*Service, error) {
-	serviceOptions, err := unit.Deserialize(strings.NewReader(service.Content))
-	if err != nil {
-		return nil, err
-	}
-
-OUTER:
-	for _, appendOpt := range options {
-		for _, opt := range serviceOptions {
-			if opt.Match(appendOpt) {
-				continue OUTER
-			}
-		}
-		serviceOptions = append(serviceOptions, appendOpt)
-	}
-
-	data, err := io.ReadAll(unit.Serialize(serviceOptions))
-	if err != nil {
-		return nil, err
-	}
-
-	return &Service{
-		Name:    service.Name,
-		Path:    service.Path,
-		Content: string(data),
-	}, nil
-}
-
 // ReadServiceInjectionManifestFile reads service injection file
-func (h *HostManager) ReadServiceInjectionManifestFile(path string) (*Service, error) {
+func (h *hostManager) ReadServiceInjectionManifestFile(path string) (*Service, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -224,7 +195,7 @@ func (h *HostManager) ReadServiceInjectionManifestFile(path string) (*Service, e
 }
 
 // ReadServiceManifestFile reads service file
-func (h *HostManager) ReadServiceManifestFile(path string) (*Service, error) {
+func (h *hostManager) ReadServiceManifestFile(path string) (*Service, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -243,7 +214,7 @@ func (h *HostManager) ReadServiceManifestFile(path string) (*Service, error) {
 }
 
 // ReadScriptManifestFile reads script file
-func (h *HostManager) ReadScriptManifestFile(path string) (*ScriptManifestFile, error) {
+func (h *hostManager) ReadScriptManifestFile(path string) (*ScriptManifestFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

@@ -23,7 +23,7 @@ import (
 )
 
 // TryToGetVirtualInterfaceName get the interface name of a virtio interface
-func (h *HostManager) TryToGetVirtualInterfaceName(pciAddr string) string {
+func (h *hostManager) TryToGetVirtualInterfaceName(pciAddr string) string {
 	log.Log.Info("TryToGetVirtualInterfaceName() get interface name for device", "device", pciAddr)
 
 	// To support different driver that is not virtio-pci like mlx
@@ -55,7 +55,7 @@ func (h *HostManager) TryToGetVirtualInterfaceName(pciAddr string) string {
 	return names[0]
 }
 
-func (h *HostManager) TryGetInterfaceName(pciAddr string) string {
+func (h *hostManager) TryGetInterfaceName(pciAddr string) string {
 	names, err := dputils.GetNetNames(pciAddr)
 	if err != nil || len(names) < 1 {
 		return ""
@@ -82,7 +82,7 @@ func (h *HostManager) TryGetInterfaceName(pciAddr string) string {
 	return netDevName
 }
 
-func (h *HostManager) GetNicSriovMode(pciAddress string) (string, error) {
+func (h *hostManager) GetNicSriovMode(pciAddress string) (string, error) {
 	log.Log.V(2).Info("GetNicSriovMode()", "device", pciAddress)
 
 	devLink, err := netlink.DevLinkGetDeviceByName("pci", pciAddress)
@@ -97,7 +97,7 @@ func (h *HostManager) GetNicSriovMode(pciAddress string) (string, error) {
 	return devLink.Attrs.Eswitch.Mode, nil
 }
 
-func (h *HostManager) GetPhysSwitchID(name string) (string, error) {
+func (h *hostManager) GetPhysSwitchID(name string) (string, error) {
 	swIDFile := filepath.Join(vars.FilesystemRoot, consts.SysClassNet, name, "phys_switch_id")
 	physSwitchID, err := os.ReadFile(swIDFile)
 	if err != nil {
@@ -109,7 +109,7 @@ func (h *HostManager) GetPhysSwitchID(name string) (string, error) {
 	return "", nil
 }
 
-func (h *HostManager) GetPhysPortName(name string) (string, error) {
+func (h *hostManager) GetPhysPortName(name string) (string, error) {
 	devicePortNameFile := filepath.Join(vars.FilesystemRoot, consts.SysClassNet, name, "phys_port_name")
 	physPortName, err := os.ReadFile(devicePortNameFile)
 	if err != nil {
@@ -121,7 +121,7 @@ func (h *HostManager) GetPhysPortName(name string) (string, error) {
 	return "", nil
 }
 
-func (h *HostManager) IsSwitchdev(name string) bool {
+func (h *hostManager) IsSwitchdev(name string) bool {
 	switchID, err := h.GetPhysSwitchID(name)
 	if err != nil || switchID == "" {
 		return false
@@ -130,7 +130,7 @@ func (h *HostManager) IsSwitchdev(name string) bool {
 	return true
 }
 
-func (h *HostManager) GetNetdevMTU(pciAddr string) int {
+func (h *hostManager) GetNetdevMTU(pciAddr string) int {
 	log.Log.V(2).Info("GetNetdevMTU(): get MTU", "device", pciAddr)
 	ifaceName := h.TryGetInterfaceName(pciAddr)
 	if ifaceName == "" {
@@ -151,7 +151,7 @@ func (h *HostManager) GetNetdevMTU(pciAddr string) int {
 	return mtu
 }
 
-func (h *HostManager) SetNetdevMTU(pciAddr string, mtu int) error {
+func (h *hostManager) SetNetdevMTU(pciAddr string, mtu int) error {
 	log.Log.V(2).Info("SetNetdevMTU(): set MTU", "device", pciAddr, "mtu", mtu)
 	if mtu <= 0 {
 		log.Log.V(2).Info("SetNetdevMTU(): refusing to set MTU", "mtu", mtu)
@@ -178,7 +178,7 @@ func (h *HostManager) SetNetdevMTU(pciAddr string, mtu int) error {
 	return nil
 }
 
-func (h *HostManager) GetNetDevMac(ifaceName string) string {
+func (h *hostManager) GetNetDevMac(ifaceName string) string {
 	log.Log.V(2).Info("GetNetDevMac(): get Mac", "device", ifaceName)
 	macFilePath := filepath.Join(vars.FilesystemRoot, consts.SysClassNet, ifaceName, "address")
 	data, err := os.ReadFile(macFilePath)
@@ -190,7 +190,7 @@ func (h *HostManager) GetNetDevMac(ifaceName string) string {
 	return strings.TrimSpace(string(data))
 }
 
-func (h *HostManager) GetNetDevLinkSpeed(ifaceName string) string {
+func (h *hostManager) GetNetDevLinkSpeed(ifaceName string) string {
 	log.Log.V(2).Info("GetNetDevLinkSpeed(): get LinkSpeed", "device", ifaceName)
 	speedFilePath := filepath.Join(vars.FilesystemRoot, consts.SysClassNet, ifaceName, "speed")
 	data, err := os.ReadFile(speedFilePath)
@@ -202,7 +202,7 @@ func (h *HostManager) GetNetDevLinkSpeed(ifaceName string) string {
 	return fmt.Sprintf("%s Mb/s", strings.TrimSpace(string(data)))
 }
 
-func (h *HostManager) GetLinkType(ifaceStatus sriovnetworkv1.InterfaceExt) string {
+func (h *hostManager) GetLinkType(ifaceStatus sriovnetworkv1.InterfaceExt) string {
 	log.Log.V(2).Info("GetLinkType()", "device", ifaceStatus.PciAddress)
 	if ifaceStatus.Name != "" {
 		link, err := netlink.LinkByName(ifaceStatus.Name)
@@ -221,7 +221,7 @@ func (h *HostManager) GetLinkType(ifaceStatus sriovnetworkv1.InterfaceExt) strin
 	return ""
 }
 
-func (h *HostManager) DiscoverSriovDevices(storeManager StoreManagerInterface) ([]sriovnetworkv1.InterfaceExt, error) {
+func (h *hostManager) DiscoverSriovDevices(storeManager StoreManagerInterface) ([]sriovnetworkv1.InterfaceExt, error) {
 	log.Log.V(2).Info("DiscoverSriovDevices")
 	pfList := []sriovnetworkv1.InterfaceExt{}
 

@@ -22,21 +22,21 @@ type VendorPlugin interface {
 }
 
 type HostHelpersInterface interface {
-	utils.UtilsInterface
+	utils.CmdInterface
 	host.HostManagerInterface
 	host.StoreManagerInterface
 	mlx.MellanoxInterface
 }
 
 type HostHelpers struct {
-	utils.UtilsInterface
+	utils.CmdInterface
 	host.HostManagerInterface
 	host.StoreManagerInterface
 	mlx.MellanoxInterface
 }
 
 // Use for unit tests
-func NewVendorPluginHelpers(utilsHelper utils.UtilsInterface,
+func NewVendorPluginHelpers(utilsHelper utils.CmdInterface,
 	hostManager host.HostManagerInterface,
 	storeManager host.StoreManagerInterface,
 	mlxHelper mlx.MellanoxInterface) *HostHelpers {
@@ -44,7 +44,7 @@ func NewVendorPluginHelpers(utilsHelper utils.UtilsInterface,
 }
 
 func NewDefaultVendorPluginHelpers() (*HostHelpers, error) {
-	utilsHelper := utils.NewUtilsHelper()
+	utilsHelper := utils.New()
 	mlxHelper := mlx.New(utilsHelper)
 	hostManager := host.NewHostManager(utilsHelper)
 	storeManager, err := host.NewStoreManager()

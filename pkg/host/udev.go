@@ -20,7 +20,7 @@ type config struct {
 	Interfaces []sriovnetworkv1.Interface `json:"interfaces"`
 }
 
-func (h *HostManager) PrepareNMUdevRule(supportedVfIds []string) error {
+func (h *hostManager) PrepareNMUdevRule(supportedVfIds []string) error {
 	log.Log.V(2).Info("PrepareNMUdevRule()")
 	filePath := filepath.Join(vars.FilesystemRoot, consts.HostUdevRulesFolder, "10-nm-unmanaged.rules")
 
@@ -46,7 +46,7 @@ func (h *HostManager) PrepareNMUdevRule(supportedVfIds []string) error {
 	return nil
 }
 
-func (h *HostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetworkNodeState, pfsToSkip map[string]bool) (update bool, err error) {
+func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetworkNodeState, pfsToSkip map[string]bool) (update bool, err error) {
 	cfg := config{}
 	for _, iface := range newState.Spec.Interfaces {
 		for _, ifaceStatus := range newState.Status.Interfaces {
@@ -138,7 +138,7 @@ func (h *HostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetwo
 	return
 }
 
-func (h *HostManager) AddUdevRule(pfPciAddress string) error {
+func (h *hostManager) AddUdevRule(pfPciAddress string) error {
 	log.Log.V(2).Info("AddUdevRule()", "device", pfPciAddress)
 	pathFile := filepath.Join(vars.FilesystemRoot, consts.UdevRulesFolder)
 	udevRuleContent := fmt.Sprintf(consts.NMUdevRule, strings.Join(vars.SupportedVfIds, "|"), pfPciAddress)
@@ -160,7 +160,7 @@ func (h *HostManager) AddUdevRule(pfPciAddress string) error {
 	return nil
 }
 
-func (h *HostManager) RemoveUdevRule(pfPciAddress string) error {
+func (h *hostManager) RemoveUdevRule(pfPciAddress string) error {
 	pathFile := filepath.Join(vars.FilesystemRoot, consts.UdevRulesFolder)
 	filePath := path.Join(pathFile, fmt.Sprintf("10-nm-disable-%s.rules", pfPciAddress))
 	err := os.Remove(filePath)

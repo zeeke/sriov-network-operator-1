@@ -119,17 +119,17 @@ type HostManagerInterface interface {
 	GetOSPrettyName() (string, error)
 }
 
-type HostManager struct {
-	utilsHelper utils.UtilsInterface
+type hostManager struct {
+	utilsHelper utils.CmdInterface
 }
 
-func NewHostManager(utilsInterface utils.UtilsInterface) HostManagerInterface {
-	return &HostManager{
+func NewHostManager(utilsInterface utils.CmdInterface) HostManagerInterface {
+	return &hostManager{
 		utilsHelper: utilsInterface,
 	}
 }
 
-func (h *HostManager) LoadKernelModule(name string, args ...string) error {
+func (h *hostManager) LoadKernelModule(name string, args ...string) error {
 	log.Log.Info("LoadKernelModule(): try to load kernel module", "name", name, "args", args)
 	chrootDefinition := utils.GetChrootExtension()
 	cmdArgs := strings.Join(args, " ")
@@ -152,7 +152,7 @@ func (h *HostManager) LoadKernelModule(name string, args ...string) error {
 	return nil
 }
 
-func (h *HostManager) IsKernelModuleLoaded(kernelModuleName string) (bool, error) {
+func (h *hostManager) IsKernelModuleLoaded(kernelModuleName string) (bool, error) {
 	log.Log.Info("IsKernelModuleLoaded(): check if kernel module is loaded", "name", kernelModuleName)
 	chrootDefinition := utils.GetChrootExtension()
 
@@ -176,19 +176,19 @@ func (h *HostManager) IsKernelModuleLoaded(kernelModuleName string) (bool, error
 	return false, nil
 }
 
-func (h *HostManager) TryEnableTun() {
+func (h *hostManager) TryEnableTun() {
 	if err := h.LoadKernelModule("tun"); err != nil {
 		log.Log.Error(err, "tryEnableTun(): TUN kernel module not loaded")
 	}
 }
 
-func (h *HostManager) TryEnableVhostNet() {
+func (h *hostManager) TryEnableVhostNet() {
 	if err := h.LoadKernelModule("vhost_net"); err != nil {
 		log.Log.Error(err, "tryEnableVhostNet(): VHOST_NET kernel module not loaded")
 	}
 }
 
-func (h *HostManager) TryEnableRdma() (bool, error) {
+func (h *hostManager) TryEnableRdma() (bool, error) {
 	log.Log.V(2).Info("tryEnableRdma()")
 	chrootDefinition := utils.GetChrootExtension()
 
@@ -241,7 +241,7 @@ func (h *HostManager) TryEnableRdma() (bool, error) {
 	return false, fmt.Errorf("unable to load RDMA unsupported OS: %s", osName)
 }
 
-func (h *HostManager) EnableRDMAOnRHELMachine() (bool, error) {
+func (h *hostManager) EnableRDMAOnRHELMachine() (bool, error) {
 	log.Log.Info("EnableRDMAOnRHELMachine()")
 	isCoreOsSystem, err := h.IsCoreOS()
 	if err != nil {
@@ -289,7 +289,7 @@ func (h *HostManager) EnableRDMAOnRHELMachine() (bool, error) {
 	return true, nil
 }
 
-func (h *HostManager) EnableRDMAOnUbuntuMachine() (bool, error) {
+func (h *hostManager) EnableRDMAOnUbuntuMachine() (bool, error) {
 	log.Log.Info("EnableRDMAOnUbuntuMachine(): enabling RDMA on RHEL machine")
 	isRDMAEnable, err := h.EnableRDMA(ubuntuRDMAConditionFile, ubuntuRDMAServiceName, ubuntuPackageManager)
 	if err != nil {
@@ -318,7 +318,7 @@ func (h *HostManager) EnableRDMAOnUbuntuMachine() (bool, error) {
 	return true, nil
 }
 
-func (h *HostManager) IsRHELSystem() (bool, error) {
+func (h *hostManager) IsRHELSystem() (bool, error) {
 	log.Log.Info("IsRHELSystem(): checking for RHEL machine")
 	path := redhatReleaseFile
 	if !vars.UsingSystemdMode {
@@ -337,7 +337,7 @@ func (h *HostManager) IsRHELSystem() (bool, error) {
 	return true, nil
 }
 
-func (h *HostManager) IsCoreOS() (bool, error) {
+func (h *hostManager) IsCoreOS() (bool, error) {
 	log.Log.Info("IsCoreOS(): checking for CoreOS machine")
 	path := redhatReleaseFile
 	if !vars.UsingSystemdMode {
@@ -357,7 +357,7 @@ func (h *HostManager) IsCoreOS() (bool, error) {
 	return false, nil
 }
 
-func (h *HostManager) IsUbuntuSystem() (bool, error) {
+func (h *hostManager) IsUbuntuSystem() (bool, error) {
 	log.Log.Info("IsUbuntuSystem(): checking for Ubuntu machine")
 	path := genericOSReleaseFile
 	if !vars.UsingSystemdMode {
@@ -387,7 +387,7 @@ func (h *HostManager) IsUbuntuSystem() (bool, error) {
 	return false, nil
 }
 
-func (h *HostManager) RdmaIsLoaded() (bool, error) {
+func (h *hostManager) RdmaIsLoaded() (bool, error) {
 	log.Log.V(2).Info("RdmaIsLoaded()")
 	chrootDefinition := utils.GetChrootExtension()
 
@@ -405,7 +405,7 @@ func (h *HostManager) RdmaIsLoaded() (bool, error) {
 	return true, nil
 }
 
-func (h *HostManager) EnableRDMA(conditionFilePath, serviceName, packageManager string) (bool, error) {
+func (h *hostManager) EnableRDMA(conditionFilePath, serviceName, packageManager string) (bool, error) {
 	path := conditionFilePath
 	if !vars.UsingSystemdMode {
 		path = pathlib.Join(hostPathFromDaemon, path)
@@ -438,7 +438,7 @@ func (h *HostManager) EnableRDMA(conditionFilePath, serviceName, packageManager 
 	return true, nil
 }
 
-func (h *HostManager) InstallRDMA(packageManager string) error {
+func (h *hostManager) InstallRDMA(packageManager string) error {
 	log.Log.Info("InstallRDMA(): installing RDMA")
 	chrootDefinition := utils.GetChrootExtension()
 
@@ -451,7 +451,7 @@ func (h *HostManager) InstallRDMA(packageManager string) error {
 	return nil
 }
 
-func (h *HostManager) TriggerUdevEvent() error {
+func (h *hostManager) TriggerUdevEvent() error {
 	log.Log.Info("TriggerUdevEvent(): installing RDMA")
 
 	err := h.ReloadDriver("mlx4_en")
@@ -467,7 +467,7 @@ func (h *HostManager) TriggerUdevEvent() error {
 	return nil
 }
 
-func (h *HostManager) ReloadDriver(driverName string) error {
+func (h *hostManager) ReloadDriver(driverName string) error {
 	log.Log.Info("ReloadDriver(): reload driver", "name", driverName)
 	chrootDefinition := utils.GetChrootExtension()
 
@@ -481,7 +481,7 @@ func (h *HostManager) ReloadDriver(driverName string) error {
 	return nil
 }
 
-func (h *HostManager) GetOSPrettyName() (string, error) {
+func (h *hostManager) GetOSPrettyName() (string, error) {
 	path := genericOSReleaseFile
 	if !vars.UsingSystemdMode {
 		path = pathlib.Join(hostPathFromDaemon, path)
@@ -504,7 +504,7 @@ func (h *HostManager) GetOSPrettyName() (string, error) {
 
 // IsKernelLockdownMode returns true when kernel lockdown mode is enabled
 // TODO: change this to return error
-func (h *HostManager) IsKernelLockdownMode() bool {
+func (h *hostManager) IsKernelLockdownMode() bool {
 	path := utils.GetHostExtension()
 	path = filepath.Join(path, "/sys/kernel/security/lockdown")
 

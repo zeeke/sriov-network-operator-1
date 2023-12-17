@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -493,10 +494,39 @@ func (p *K8sPlugin) updateSystemService(serviceObj *host.Service) error {
 	if err != nil {
 		return err
 	}
-	updatedService, err := host.AppendToService(systemService, serviceOptions...)
+	updatedService, err := appendToService(systemService, serviceOptions...)
 	if err != nil {
 		return err
 	}
 
 	return p.hostHelper.EnableService(updatedService)
+}
+
+// appendToService appends given fields to service
+func appendToService(service *host.Service, options ...*unit.UnitOption) (*host.Service, error) {
+	serviceOptions, err := unit.Deserialize(strings.NewReader(service.Content))
+	if err != nil {
+		return nil, err
+	}
+
+OUTER:
+	for _, appendOpt := range options {
+		for _, opt := range serviceOptions {
+			if opt.Match(appendOpt) {
+				continue OUTER
+			}
+		}
+		serviceOptions = append(serviceOptions, appendOpt)
+	}
+
+	data, err := io.ReadAll(unit.Serialize(serviceOptions))
+	if err != nil {
+		return nil, err
+	}
+
+	return &host.Service{
+		Name:    service.Name,
+		Path:    service.Path,
+		Content: string(data),
+	}, nil
 }

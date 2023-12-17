@@ -181,7 +181,7 @@ func (dn *Daemon) Run(stopCh <-chan struct{}, exitCh <-chan error) error {
 	}
 
 	if !vars.UsingSystemdMode {
-		log.Log.V(0).Info("Run(): daemon running in systemd mode")
+		log.Log.V(0).Info("Run(): daemon running in daemon mode")
 		dn.HostHelpers.TryEnableRdma()
 		dn.HostHelpers.TryEnableTun()
 		dn.HostHelpers.TryEnableVhostNet()
@@ -189,7 +189,10 @@ func (dn *Daemon) Run(stopCh <-chan struct{}, exitCh <-chan error) error {
 		if err != nil {
 			log.Log.Error(err, "failed to remove all the systemd sriov files")
 		}
+	} else {
+		log.Log.V(0).Info("Run(): daemon running in systemd mode")
 	}
+
 	// Only watch own SriovNetworkNodeState CR
 	defer utilruntime.HandleCrash()
 	defer dn.workqueue.ShutDown()
