@@ -1,4 +1,4 @@
-package mellanox
+package mlxutils
 
 import (
 	"fmt"
@@ -46,7 +46,7 @@ const (
 	MellanoxVendorID      = "15b3"
 )
 
-type MLXNic struct {
+type MlxNic struct {
 	EnableSriov bool
 	TotalVfs    int
 	LinkTypeP1  string
@@ -57,29 +57,29 @@ type MLXNic struct {
 type MellanoxInterface interface {
 	MstConfigReadData(string) (string, string, error)
 	GetMellanoxBlueFieldMode(string) (BlueFieldMode, error)
-	GetMlnxNicFwData(pciAddress string) (current, next *MLXNic, err error)
+	GetMlxNicFwData(pciAddress string) (current, next *MlxNic, err error)
 
-	MLXConfigFW(attributesToChange map[string]MLXNic) error
+	MlxConfigFW(attributesToChange map[string]MlxNic) error
 }
 
-type MellanoxHelper struct {
+type mellanoxHelper struct {
 	utils utils.UtilsInterface
 }
 
-func NewMellanoxHelper(utilsHelper utils.UtilsInterface) MellanoxInterface {
-	return &MellanoxHelper{
+func New(utilsHelper utils.UtilsInterface) MellanoxInterface {
+	return &mellanoxHelper{
 		utils: utilsHelper,
 	}
 }
 
-func (m *MellanoxHelper) MstConfigReadData(pciAddress string) (string, string, error) {
+func (m *mellanoxHelper) MstConfigReadData(pciAddress string) (string, string, error) {
 	log.Log.Info("MstConfigReadData()", "device", pciAddress)
 	args := []string{"-e", "-d", pciAddress, "q"}
 	stdout, stderr, err := m.utils.RunCommand("mstconfig", args...)
 	return stdout, stderr, err
 }
 
-func (m *MellanoxHelper) GetMellanoxBlueFieldMode(PciAddress string) (BlueFieldMode, error) {
+func (m *mellanoxHelper) GetMellanoxBlueFieldMode(PciAddress string) (BlueFieldMode, error) {
 	log.Log.V(2).Info("MellanoxBlueFieldMode(): checking mode for device", "device", PciAddress)
 	stdout, stderr, err := m.MstConfigReadData(PciAddress)
 	if err != nil {
@@ -141,7 +141,7 @@ func (m *MellanoxHelper) GetMellanoxBlueFieldMode(PciAddress string) (BlueFieldM
 	return -1, fmt.Errorf("MellanoxBlueFieldMode(): unknown device status for %s", PciAddress)
 }
 
-func (m *MellanoxHelper) MLXConfigFW(attributesToChange map[string]MLXNic) error {
+func (m *mellanoxHelper) MlxConfigFW(attributesToChange map[string]MlxNic) error {
 	log.Log.Info("mellanox-plugin configFW()")
 	for pciAddr, fwArgs := range attributesToChange {
 		cmdArgs := []string{"-d", pciAddr, "-y", "set"}
@@ -173,7 +173,7 @@ func (m *MellanoxHelper) MLXConfigFW(attributesToChange map[string]MLXNic) error
 	return nil
 }
 
-func (m *MellanoxHelper) GetMlnxNicFwData(pciAddress string) (current, next *MLXNic, err error) {
+func (m *mellanoxHelper) GetMlxNicFwData(pciAddress string) (current, next *MlxNic, err error) {
 	log.Log.Info("mellanox-plugin getMlnxNicFwData()", "device", pciAddress)
 	attrs := []string{TotalVfs, EnableSriov, LinkTypeP1, LinkTypeP2}
 
@@ -241,7 +241,7 @@ func IsDualPort(pciAddress string, mellanoxNicsStatus map[string]map[string]srio
 }
 
 // handleTotalVfs return required total VFs or max (required VFs for dual port NIC) and needReboot if totalVfs will change
-func HandleTotalVfs(fwCurrent, fwNext, attrs *MLXNic, ifaceSpec sriovnetworkv1.Interface, isDualPort bool, mellanoxNicsSpec map[string]sriovnetworkv1.Interface) (
+func HandleTotalVfs(fwCurrent, fwNext, attrs *MlxNic, ifaceSpec sriovnetworkv1.Interface, isDualPort bool, mellanoxNicsSpec map[string]sriovnetworkv1.Interface) (
 	totalVfs int, needReboot, changeWithoutReboot bool) {
 	totalVfs = ifaceSpec.NumVfs
 	// Check if the other port is changing theGetMlnxNicFwData number of VF
@@ -286,7 +286,7 @@ func HandleTotalVfs(fwCurrent, fwNext, attrs *MLXNic, ifaceSpec sriovnetworkv1.I
 
 // handleEnableSriov based on totalVfs it decide to disable (totalVfs=0) or enable (totalVfs changed from 0) sriov
 // and need reboot if enableSriov will change
-func HandleEnableSriov(totalVfs int, fwCurrent, fwNext, attrs *MLXNic) (needReboot, changeWithoutReboot bool) {
+func HandleEnableSriov(totalVfs int, fwCurrent, fwNext, attrs *MlxNic) (needReboot, changeWithoutReboot bool) {
 	if totalVfs == 0 && fwCurrent.EnableSriov {
 		log.Log.V(2).Info("disabling Sriov, needs reboot")
 		attrs.EnableSriov = false
@@ -304,7 +304,7 @@ func HandleEnableSriov(totalVfs int, fwCurrent, fwNext, attrs *MLXNic) (needRebo
 }
 
 // handleLinkType based on existing linkType and requested link
-func HandleLinkType(pciPrefix string, fwData, attr *MLXNic,
+func HandleLinkType(pciPrefix string, fwData, attr *MlxNic,
 	mellanoxNicsSpec map[string]sriovnetworkv1.Interface,
 	mellanoxNicsStatus map[string]map[string]sriovnetworkv1.InterfaceExt) (bool, error) {
 	needReboot := false
@@ -344,9 +344,9 @@ func HandleLinkType(pciPrefix string, fwData, attr *MLXNic,
 	return needReboot, nil
 }
 
-func mlnxNicFromMap(mstData map[string]string) (*MLXNic, error) {
+func mlnxNicFromMap(mstData map[string]string) (*MlxNic, error) {
 	log.Log.Info("mellanox-plugin mlnxNicFromMap()", "data", mstData)
-	fwData := &MLXNic{}
+	fwData := &MlxNic{}
 	if strings.Contains(mstData[EnableSriov], "True") {
 		fwData.EnableSriov = true
 	}

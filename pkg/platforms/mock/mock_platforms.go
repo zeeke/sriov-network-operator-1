@@ -13,31 +13,31 @@ import (
 	versioned "github.com/openshift/machine-config-operator/pkg/generated/clientset/versioned"
 )
 
-// MockPlatformHelperInterface is a mock of PlatformHelperInterface interface.
-type MockPlatformHelperInterface struct {
+// MockInterface is a mock of Interface interface.
+type MockInterface struct {
 	ctrl     *gomock.Controller
-	recorder *MockPlatformHelperInterfaceMockRecorder
+	recorder *MockInterfaceMockRecorder
 }
 
-// MockPlatformHelperInterfaceMockRecorder is the mock recorder for MockPlatformHelperInterface.
-type MockPlatformHelperInterfaceMockRecorder struct {
-	mock *MockPlatformHelperInterface
+// MockInterfaceMockRecorder is the mock recorder for MockInterface.
+type MockInterfaceMockRecorder struct {
+	mock *MockInterface
 }
 
-// NewMockPlatformHelperInterface creates a new mock instance.
-func NewMockPlatformHelperInterface(ctrl *gomock.Controller) *MockPlatformHelperInterface {
-	mock := &MockPlatformHelperInterface{ctrl: ctrl}
-	mock.recorder = &MockPlatformHelperInterfaceMockRecorder{mock}
+// NewMockInterface creates a new mock instance.
+func NewMockInterface(ctrl *gomock.Controller) *MockInterface {
+	mock := &MockInterface{ctrl: ctrl}
+	mock.recorder = &MockInterfaceMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockPlatformHelperInterface) EXPECT() *MockPlatformHelperInterfaceMockRecorder {
+func (m *MockInterface) EXPECT() *MockInterfaceMockRecorder {
 	return m.recorder
 }
 
 // CreateOpenstackDevicesInfo mocks base method.
-func (m *MockPlatformHelperInterface) CreateOpenstackDevicesInfo() error {
+func (m *MockInterface) CreateOpenstackDevicesInfo() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOpenstackDevicesInfo")
 	ret0, _ := ret[0].(error)
@@ -45,25 +45,25 @@ func (m *MockPlatformHelperInterface) CreateOpenstackDevicesInfo() error {
 }
 
 // CreateOpenstackDevicesInfo indicates an expected call of CreateOpenstackDevicesInfo.
-func (mr *MockPlatformHelperInterfaceMockRecorder) CreateOpenstackDevicesInfo() *gomock.Call {
+func (mr *MockInterfaceMockRecorder) CreateOpenstackDevicesInfo() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOpenstackDevicesInfo", reflect.TypeOf((*MockPlatformHelperInterface)(nil).CreateOpenstackDevicesInfo))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOpenstackDevicesInfo", reflect.TypeOf((*MockInterface)(nil).CreateOpenstackDevicesInfo))
 }
 
 // CreateOpenstackDevicesInfoFromNodeStatus mocks base method.
-func (m *MockPlatformHelperInterface) CreateOpenstackDevicesInfoFromNodeStatus(arg0 *v1.SriovNetworkNodeState) {
+func (m *MockInterface) CreateOpenstackDevicesInfoFromNodeStatus(arg0 *v1.SriovNetworkNodeState) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "CreateOpenstackDevicesInfoFromNodeStatus", arg0)
 }
 
 // CreateOpenstackDevicesInfoFromNodeStatus indicates an expected call of CreateOpenstackDevicesInfoFromNodeStatus.
-func (mr *MockPlatformHelperInterfaceMockRecorder) CreateOpenstackDevicesInfoFromNodeStatus(arg0 interface{}) *gomock.Call {
+func (mr *MockInterfaceMockRecorder) CreateOpenstackDevicesInfoFromNodeStatus(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOpenstackDevicesInfoFromNodeStatus", reflect.TypeOf((*MockPlatformHelperInterface)(nil).CreateOpenstackDevicesInfoFromNodeStatus), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOpenstackDevicesInfoFromNodeStatus", reflect.TypeOf((*MockInterface)(nil).CreateOpenstackDevicesInfoFromNodeStatus), arg0)
 }
 
 // DiscoverSriovDevicesVirtual mocks base method.
-func (m *MockPlatformHelperInterface) DiscoverSriovDevicesVirtual() ([]v1.InterfaceExt, error) {
+func (m *MockInterface) DiscoverSriovDevicesVirtual() ([]v1.InterfaceExt, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DiscoverSriovDevicesVirtual")
 	ret0, _ := ret[0].([]v1.InterfaceExt)
@@ -72,13 +72,13 @@ func (m *MockPlatformHelperInterface) DiscoverSriovDevicesVirtual() ([]v1.Interf
 }
 
 // DiscoverSriovDevicesVirtual indicates an expected call of DiscoverSriovDevicesVirtual.
-func (mr *MockPlatformHelperInterfaceMockRecorder) DiscoverSriovDevicesVirtual() *gomock.Call {
+func (mr *MockInterfaceMockRecorder) DiscoverSriovDevicesVirtual() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscoverSriovDevicesVirtual", reflect.TypeOf((*MockPlatformHelperInterface)(nil).DiscoverSriovDevicesVirtual))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscoverSriovDevicesVirtual", reflect.TypeOf((*MockInterface)(nil).DiscoverSriovDevicesVirtual))
 }
 
 // GetFlavor mocks base method.
-func (m *MockPlatformHelperInterface) GetFlavor() openshift.OpenshiftFlavor {
+func (m *MockInterface) GetFlavor() openshift.OpenshiftFlavor {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetFlavor")
 	ret0, _ := ret[0].(openshift.OpenshiftFlavor)
@@ -86,13 +86,13 @@ func (m *MockPlatformHelperInterface) GetFlavor() openshift.OpenshiftFlavor {
 }
 
 // GetFlavor indicates an expected call of GetFlavor.
-func (mr *MockPlatformHelperInterfaceMockRecorder) GetFlavor() *gomock.Call {
+func (mr *MockInterfaceMockRecorder) GetFlavor() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlavor", reflect.TypeOf((*MockPlatformHelperInterface)(nil).GetFlavor))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlavor", reflect.TypeOf((*MockInterface)(nil).GetFlavor))
 }
 
 // GetMcClient mocks base method.
-func (m *MockPlatformHelperInterface) GetMcClient() versioned.Interface {
+func (m *MockInterface) GetMcClient() versioned.Interface {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMcClient")
 	ret0, _ := ret[0].(versioned.Interface)
@@ -100,13 +100,13 @@ func (m *MockPlatformHelperInterface) GetMcClient() versioned.Interface {
 }
 
 // GetMcClient indicates an expected call of GetMcClient.
-func (mr *MockPlatformHelperInterfaceMockRecorder) GetMcClient() *gomock.Call {
+func (mr *MockInterfaceMockRecorder) GetMcClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMcClient", reflect.TypeOf((*MockPlatformHelperInterface)(nil).GetMcClient))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMcClient", reflect.TypeOf((*MockInterface)(nil).GetMcClient))
 }
 
 // IsHypershift mocks base method.
-func (m *MockPlatformHelperInterface) IsHypershift() bool {
+func (m *MockInterface) IsHypershift() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsHypershift")
 	ret0, _ := ret[0].(bool)
@@ -114,13 +114,13 @@ func (m *MockPlatformHelperInterface) IsHypershift() bool {
 }
 
 // IsHypershift indicates an expected call of IsHypershift.
-func (mr *MockPlatformHelperInterfaceMockRecorder) IsHypershift() *gomock.Call {
+func (mr *MockInterfaceMockRecorder) IsHypershift() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsHypershift", reflect.TypeOf((*MockPlatformHelperInterface)(nil).IsHypershift))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsHypershift", reflect.TypeOf((*MockInterface)(nil).IsHypershift))
 }
 
 // IsOpenshiftCluster mocks base method.
-func (m *MockPlatformHelperInterface) IsOpenshiftCluster() bool {
+func (m *MockInterface) IsOpenshiftCluster() bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsOpenshiftCluster")
 	ret0, _ := ret[0].(bool)
@@ -128,7 +128,7 @@ func (m *MockPlatformHelperInterface) IsOpenshiftCluster() bool {
 }
 
 // IsOpenshiftCluster indicates an expected call of IsOpenshiftCluster.
-func (mr *MockPlatformHelperInterfaceMockRecorder) IsOpenshiftCluster() *gomock.Call {
+func (mr *MockInterfaceMockRecorder) IsOpenshiftCluster() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpenshiftCluster", reflect.TypeOf((*MockPlatformHelperInterface)(nil).IsOpenshiftCluster))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOpenshiftCluster", reflect.TypeOf((*MockInterface)(nil).IsOpenshiftCluster))
 }

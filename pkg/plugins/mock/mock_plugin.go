@@ -12,7 +12,7 @@ import (
 	ghw "github.com/jaypipes/ghw"
 	v1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	host "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
-	mellanox "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vendors/mellanox"
+	mlxutils "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vendors/mellanox"
 	netlink "github.com/vishvananda/netlink"
 )
 
@@ -352,10 +352,10 @@ func (mr *MockHostHelpersInterfaceMockRecorder) GetLinkType(arg0 interface{}) *g
 }
 
 // GetMellanoxBlueFieldMode mocks base method.
-func (m *MockHostHelpersInterface) GetMellanoxBlueFieldMode(arg0 string) (mellanox.BlueFieldMode, error) {
+func (m *MockHostHelpersInterface) GetMellanoxBlueFieldMode(arg0 string) (mlxutils.BlueFieldMode, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMellanoxBlueFieldMode", arg0)
-	ret0, _ := ret[0].(mellanox.BlueFieldMode)
+	ret0, _ := ret[0].(mlxutils.BlueFieldMode)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -366,20 +366,20 @@ func (mr *MockHostHelpersInterfaceMockRecorder) GetMellanoxBlueFieldMode(arg0 in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMellanoxBlueFieldMode", reflect.TypeOf((*MockHostHelpersInterface)(nil).GetMellanoxBlueFieldMode), arg0)
 }
 
-// GetMlnxNicFwData mocks base method.
-func (m *MockHostHelpersInterface) GetMlnxNicFwData(pciAddress string) (*mellanox.MLXNic, *mellanox.MLXNic, error) {
+// GetMlxNicFwData mocks base method.
+func (m *MockHostHelpersInterface) GetMlxNicFwData(pciAddress string) (*mlxutils.MlxNic, *mlxutils.MlxNic, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMlnxNicFwData", pciAddress)
-	ret0, _ := ret[0].(*mellanox.MLXNic)
-	ret1, _ := ret[1].(*mellanox.MLXNic)
+	ret := m.ctrl.Call(m, "GetMlxNicFwData", pciAddress)
+	ret0, _ := ret[0].(*mlxutils.MlxNic)
+	ret1, _ := ret[1].(*mlxutils.MlxNic)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// GetMlnxNicFwData indicates an expected call of GetMlnxNicFwData.
-func (mr *MockHostHelpersInterfaceMockRecorder) GetMlnxNicFwData(pciAddress interface{}) *gomock.Call {
+// GetMlxNicFwData indicates an expected call of GetMlxNicFwData.
+func (mr *MockHostHelpersInterfaceMockRecorder) GetMlxNicFwData(pciAddress interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMlnxNicFwData", reflect.TypeOf((*MockHostHelpersInterface)(nil).GetMlnxNicFwData), pciAddress)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMlxNicFwData", reflect.TypeOf((*MockHostHelpersInterface)(nil).GetMlxNicFwData), pciAddress)
 }
 
 // GetNetDevLinkSpeed mocks base method.
@@ -694,18 +694,18 @@ func (mr *MockHostHelpersInterfaceMockRecorder) LoadPfsStatus(pciAddress interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadPfsStatus", reflect.TypeOf((*MockHostHelpersInterface)(nil).LoadPfsStatus), pciAddress)
 }
 
-// MLXConfigFW mocks base method.
-func (m *MockHostHelpersInterface) MLXConfigFW(attributesToChange map[string]mellanox.MLXNic) error {
+// MlxConfigFW mocks base method.
+func (m *MockHostHelpersInterface) MlxConfigFW(attributesToChange map[string]mlxutils.MlxNic) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MLXConfigFW", attributesToChange)
+	ret := m.ctrl.Call(m, "MlxConfigFW", attributesToChange)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// MLXConfigFW indicates an expected call of MLXConfigFW.
-func (mr *MockHostHelpersInterfaceMockRecorder) MLXConfigFW(attributesToChange interface{}) *gomock.Call {
+// MlxConfigFW indicates an expected call of MlxConfigFW.
+func (mr *MockHostHelpersInterfaceMockRecorder) MlxConfigFW(attributesToChange interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MLXConfigFW", reflect.TypeOf((*MockHostHelpersInterface)(nil).MLXConfigFW), attributesToChange)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MlxConfigFW", reflect.TypeOf((*MockHostHelpersInterface)(nil).MlxConfigFW), attributesToChange)
 }
 
 // MstConfigReadData mocks base method.

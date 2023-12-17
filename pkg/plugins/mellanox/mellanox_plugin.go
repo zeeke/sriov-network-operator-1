@@ -18,7 +18,7 @@ type MellanoxPlugin struct {
 	helpers     plugin.HostHelpersInterface
 }
 
-var attributesToChange map[string]mlx.MLXNic
+var attributesToChange map[string]mlx.MlxNic
 var mellanoxNicsStatus map[string]map[string]sriovnetworkv1.InterfaceExt
 var mellanoxNicsSpec map[string]sriovnetworkv1.Interface
 
@@ -50,7 +50,7 @@ func (p *MellanoxPlugin) OnNodeStateChange(new *sriovnetworkv1.SriovNetworkNodeS
 	needDrain = false
 	needReboot = false
 	err = nil
-	attributesToChange = map[string]mlx.MLXNic{}
+	attributesToChange = map[string]mlx.MlxNic{}
 	mellanoxNicsSpec = map[string]sriovnetworkv1.Interface{}
 	processedNics := map[string]bool{}
 
@@ -95,14 +95,14 @@ func (p *MellanoxPlugin) OnNodeStateChange(new *sriovnetworkv1.SriovNetworkNodeS
 			continue
 		}
 		processedNics[pciPrefix] = true
-		fwCurrent, fwNext, err := p.helpers.GetMlnxNicFwData(ifaceSpec.PciAddress)
+		fwCurrent, fwNext, err := p.helpers.GetMlxNicFwData(ifaceSpec.PciAddress)
 		if err != nil {
 			return false, false, err
 		}
 
 		isDualPort := mlx.IsDualPort(ifaceSpec.PciAddress, mellanoxNicsStatus)
 		// Attributes to change
-		attrs := &mlx.MLXNic{TotalVfs: -1}
+		attrs := &mlx.MlxNic{TotalVfs: -1}
 		var changeWithoutReboot bool
 
 		var totalVfs int
@@ -144,13 +144,13 @@ func (p *MellanoxPlugin) OnNodeStateChange(new *sriovnetworkv1.SriovNetworkNodeS
 			continue
 		}
 
-		_, fwNext, err := p.helpers.GetMlnxNicFwData(pciAddress)
+		_, fwNext, err := p.helpers.GetMlxNicFwData(pciAddress)
 		if err != nil {
 			return false, false, err
 		}
 
 		if fwNext.TotalVfs > 0 || fwNext.EnableSriov {
-			attributesToChange[pciAddress] = mlx.MLXNic{TotalVfs: 0}
+			attributesToChange[pciAddress] = mlx.MlxNic{TotalVfs: 0}
 			log.Log.V(2).Info("Changing TotalVfs to 0, doesn't require rebooting", "fwNext.totalVfs", fwNext.TotalVfs)
 		}
 	}
@@ -169,5 +169,5 @@ func (p *MellanoxPlugin) Apply() error {
 		return nil
 	}
 	log.Log.Info("mellanox-plugin Apply()")
-	return p.helpers.MLXConfigFW(attributesToChange)
+	return p.helpers.MlxConfigFW(attributesToChange)
 }

@@ -45,7 +45,7 @@ func NewVendorPluginHelpers(utilsHelper utils.UtilsInterface,
 
 func NewDefaultVendorPluginHelpers() (*HostHelpers, error) {
 	utilsHelper := utils.NewUtilsHelper()
-	mlxHelper := mlx.NewMellanoxHelper(utilsHelper)
+	mlxHelper := mlx.New(utilsHelper)
 	hostManager := host.NewHostManager(utilsHelper)
 	storeManager, err := host.NewStoreManager()
 	if err != nil {
