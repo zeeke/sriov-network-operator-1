@@ -200,7 +200,7 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 		eventRecorder,
 		vendorHelpers.StoreManagerInterface,
 		vendorHelpers.HostManagerInterface,
-		platformHelper.OpenstackInterface)
+		platformHelper)
 
 	nodeInfo, err := kubeclient.CoreV1().Nodes().Get(context.Background(), startOpts.nodeName, v1.GetOptions{})
 	if err == nil {

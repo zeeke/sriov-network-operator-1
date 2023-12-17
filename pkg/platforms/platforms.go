@@ -6,17 +6,17 @@ import (
 )
 
 //go:generate ../../bin/mockgen -destination mock/mock_platforms.go -source platforms.go
-type PlatformHelperInterface interface {
+type Interface interface {
 	openshift.OpenshiftContextInterface
 	openstack.OpenstackInterface
 }
 
-type PlatformHelper struct {
+type platformHelper struct {
 	openshift.OpenshiftContextInterface
 	openstack.OpenstackInterface
 }
 
-func NewDefaultPlatformHelper() (*PlatformHelper, error) {
+func NewDefaultPlatformHelper() (Interface, error) {
 	openshiftContext, err := openshift.NewOpenshiftContext()
 	if err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func NewDefaultPlatformHelper() (*PlatformHelper, error) {
 
 	openstackContext := openstack.NewOpenstackContext()
 
-	return &PlatformHelper{
+	return &platformHelper{
 		openshiftContext,
 		openstackContext,
 	}, nil

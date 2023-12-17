@@ -42,7 +42,7 @@ type OpenstackInterface interface {
 	DiscoverSriovDevicesVirtual() ([]sriovnetworkv1.InterfaceExt, error)
 }
 
-type OpenstackContext struct {
+type openstackContext struct {
 	hostManager          host.HostManagerInterface
 	openStackDevicesInfo OSPDevicesInfo
 }
@@ -101,7 +101,7 @@ type OSPDeviceInfo struct {
 }
 
 func NewOpenstackContext() OpenstackInterface {
-	return &OpenstackContext{}
+	return &openstackContext{}
 }
 
 // GetOpenstackData gets the metadata and network_data
@@ -254,7 +254,7 @@ func getPCIAddressFromMACAddress(macAddress string, nics []*net.NIC) (string, er
 }
 
 // CreateOpenstackDevicesInfo create the openstack device info map
-func (o *OpenstackContext) CreateOpenstackDevicesInfo() error {
+func (o *openstackContext) CreateOpenstackDevicesInfo() error {
 	log.Log.Info("CreateOpenstackDevicesInfo()")
 	devicesInfo := make(OSPDevicesInfo)
 
@@ -339,7 +339,7 @@ func (o *OpenstackContext) CreateOpenstackDevicesInfo() error {
 }
 
 // DiscoverSriovDevicesVirtual discovers VFs on a virtual platform
-func (o *OpenstackContext) DiscoverSriovDevicesVirtual() ([]sriovnetworkv1.InterfaceExt, error) {
+func (o *openstackContext) DiscoverSriovDevicesVirtual() ([]sriovnetworkv1.InterfaceExt, error) {
 	log.Log.V(2).Info("DiscoverSriovDevicesVirtual()")
 	pfList := []sriovnetworkv1.InterfaceExt{}
 
@@ -418,7 +418,7 @@ func (o *OpenstackContext) DiscoverSriovDevicesVirtual() ([]sriovnetworkv1.Inter
 	return pfList, nil
 }
 
-func (o *OpenstackContext) CreateOpenstackDevicesInfoFromNodeStatus(networkState *sriovnetworkv1.SriovNetworkNodeState) {
+func (o *openstackContext) CreateOpenstackDevicesInfoFromNodeStatus(networkState *sriovnetworkv1.SriovNetworkNodeState) {
 	devicesInfo := make(OSPDevicesInfo)
 	for _, iface := range networkState.Status.Interfaces {
 		devicesInfo[iface.PciAddress] = &OSPDeviceInfo{MacAddress: iface.Mac, NetworkID: iface.NetFilter}

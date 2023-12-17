@@ -51,7 +51,7 @@ import (
 type SriovOperatorConfigReconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
-	PlatformHelper platforms.PlatformHelperInterface
+	PlatformHelper platforms.Interface
 }
 
 //+kubebuilder:rbac:groups=sriovnetwork.openshift.io,resources=sriovoperatorconfigs,verbs=get;list;watch;create;update;patch;delete

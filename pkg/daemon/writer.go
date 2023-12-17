@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms"
 	"os"
 	"path/filepath"
 	"time"
@@ -18,7 +19,6 @@ import (
 	snclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms/openstack"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
@@ -31,7 +31,7 @@ type NodeStateStatusWriter struct {
 	client             snclientset.Interface
 	status             sriovnetworkv1.SriovNetworkNodeStateStatus
 	OnHeartbeatFailure func()
-	openStackInterface openstack.OpenstackInterface
+	platformHelper     platforms.Interface
 	storeManager       host.StoreManagerInterface
 	hostManager        host.HostManagerInterface
 	eventRecorder      *EventRecorder
@@ -42,14 +42,14 @@ func NewNodeStateStatusWriter(c snclientset.Interface,
 	f func(), er *EventRecorder,
 	storeManager host.StoreManagerInterface,
 	hostManager host.HostManagerInterface,
-	openStackInterface openstack.OpenstackInterface) *NodeStateStatusWriter {
+	platformHelper platforms.Interface) *NodeStateStatusWriter {
 	return &NodeStateStatusWriter{
 		client:             c,
 		OnHeartbeatFailure: f,
 		eventRecorder:      er,
 		storeManager:       storeManager,
 		hostManager:        hostManager,
-		openStackInterface: openStackInterface,
+		platformHelper:     platformHelper,
 	}
 }
 
@@ -65,12 +65,12 @@ func (w *NodeStateStatusWriter) RunOnce() error {
 		}
 
 		if ns == nil {
-			err = w.openStackInterface.CreateOpenstackDevicesInfo()
+			err = w.platformHelper.CreateOpenstackDevicesInfo()
 			if err != nil {
 				return err
 			}
 		} else {
-			w.openStackInterface.CreateOpenstackDevicesInfoFromNodeStatus(ns)
+			w.platformHelper.CreateOpenstackDevicesInfoFromNodeStatus(ns)
 		}
 	}
 
@@ -123,7 +123,7 @@ func (w *NodeStateStatusWriter) pollNicStatus() error {
 	var err error
 
 	if vars.PlatformType == consts.VirtualOpenStack {
-		iface, err = w.openStackInterface.DiscoverSriovDevicesVirtual()
+		iface, err = w.platformHelper.DiscoverSriovDevicesVirtual()
 	} else {
 		iface, err = w.hostManager.DiscoverSriovDevices(w.storeManager)
 	}

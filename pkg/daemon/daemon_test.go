@@ -117,7 +117,7 @@ var _ = Describe("Config Daemon", func() {
 
 		t := GinkgoT()
 		mockCtrl := gomock.NewController(t)
-		platformHelper := mock_platforms.NewMockPlatformHelperInterface(mockCtrl)
+		platformHelper := mock_platforms.NewMockInterface(mockCtrl)
 		platformHelper.EXPECT().GetFlavor().Return(openshift.OpenshiftFlavorDefault).AnyTimes()
 		platformHelper.EXPECT().IsOpenshiftCluster().Return(false).AnyTimes()
 		platformHelper.EXPECT().IsHypershift().Return(false).AnyTimes()

@@ -27,8 +27,8 @@ type OpenshiftContextInterface interface {
 	IsHypershift() bool
 }
 
-// OpenshiftContext contains metadata and structs utilized to interact with Openshift clusters
-type OpenshiftContext struct {
+// openshiftContext contains metadata and structs utilized to interact with Openshift clusters
+type openshiftContext struct {
 	// McClient is a client for MachineConfigs in an Openshift environment
 	McClient mcclientset.Interface
 
@@ -41,7 +41,7 @@ type OpenshiftContext struct {
 
 func NewOpenshiftContext() (OpenshiftContextInterface, error) {
 	if vars.ClusterType != consts.ClusterTypeOpenshift {
-		return &OpenshiftContext{nil, false, ""}, nil
+		return &openshiftContext{nil, false, ""}, nil
 	}
 
 	mcclient, err := mcclientset.NewForConfig(vars.Config)
@@ -66,21 +66,21 @@ func NewOpenshiftContext() (OpenshiftContextInterface, error) {
 		openshiftFlavor = OpenshiftFlavorHypershift
 	}
 
-	return &OpenshiftContext{mcclient, true, openshiftFlavor}, nil
+	return &openshiftContext{mcclient, true, openshiftFlavor}, nil
 }
 
-func (c *OpenshiftContext) GetFlavor() OpenshiftFlavor {
+func (c *openshiftContext) GetFlavor() OpenshiftFlavor {
 	return c.OpenshiftFlavor
 }
 
-func (c *OpenshiftContext) GetMcClient() mcclientset.Interface {
+func (c *openshiftContext) GetMcClient() mcclientset.Interface {
 	return c.McClient
 }
 
-func (c OpenshiftContext) IsOpenshiftCluster() bool {
+func (c openshiftContext) IsOpenshiftCluster() bool {
 	return c.IsOpenShiftCluster
 }
 
-func (c OpenshiftContext) IsHypershift() bool {
+func (c openshiftContext) IsHypershift() bool {
 	return c.OpenshiftFlavor == OpenshiftFlavorHypershift
 }

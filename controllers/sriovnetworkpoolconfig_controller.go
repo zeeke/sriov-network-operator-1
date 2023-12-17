@@ -26,7 +26,7 @@ import (
 type SriovNetworkPoolConfigReconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
-	PlatformHelper platforms.PlatformHelperInterface
+	PlatformHelper platforms.Interface
 }
 
 //+kubebuilder:rbac:groups=sriovnetwork.openshift.io,resources=sriovnetworkpoolconfigs,verbs=get;list;watch;create;update;patch;delete
