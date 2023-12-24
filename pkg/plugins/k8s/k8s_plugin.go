@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
 	plugins "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/plugins"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
@@ -92,8 +93,6 @@ const (
 	configuresSwitchdevBeforeNMScript = switchdevManifestPath + "files/switchdev-configuration-before-nm.sh.yaml"
 	configuresSwitchdevAfterNMScript  = switchdevManifestPath + "files/switchdev-configuration-after-nm.sh.yaml"
 	switchdevRenamingUdevScript       = switchdevManifestPath + "files/switchdev-vf-link-name.sh.yaml"
-
-	chroot = "/host"
 )
 
 // Initialize our plugin and set up initial values
@@ -344,7 +343,7 @@ func (p *K8sPlugin) getSwitchDevSystemServices() []*host.Service {
 }
 
 func (p *K8sPlugin) isSwitchdevScriptNeedUpdate(scriptObj *host.ScriptManifestFile) (needUpdate bool, err error) {
-	data, err := os.ReadFile(path.Join(chroot, scriptObj.Path))
+	data, err := os.ReadFile(path.Join(consts.Host, scriptObj.Path))
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return false, err
@@ -455,7 +454,7 @@ func (p *K8sPlugin) updateSwitchdevService() error {
 	}
 
 	if p.updateTarget.switchdevBeforeNMRunScript {
-		err := os.WriteFile(path.Join(chroot, p.switchdevBeforeNMRunScript.Path),
+		err := os.WriteFile(path.Join(consts.Host, p.switchdevBeforeNMRunScript.Path),
 			[]byte(p.switchdevBeforeNMRunScript.Contents.Inline), 0755)
 		if err != nil {
 			return err
@@ -463,7 +462,7 @@ func (p *K8sPlugin) updateSwitchdevService() error {
 	}
 
 	if p.updateTarget.switchdevAfterNMRunScript {
-		err := os.WriteFile(path.Join(chroot, p.switchdevAfterNMRunScript.Path),
+		err := os.WriteFile(path.Join(consts.Host, p.switchdevAfterNMRunScript.Path),
 			[]byte(p.switchdevAfterNMRunScript.Contents.Inline), 0755)
 		if err != nil {
 			return err
@@ -471,7 +470,7 @@ func (p *K8sPlugin) updateSwitchdevService() error {
 	}
 
 	if p.updateTarget.switchdevUdevScript {
-		err := os.WriteFile(path.Join(chroot, p.switchdevUdevScript.Path),
+		err := os.WriteFile(path.Join(consts.Host, p.switchdevUdevScript.Path),
 			[]byte(p.switchdevUdevScript.Contents.Inline), 0755)
 		if err != nil {
 			return err

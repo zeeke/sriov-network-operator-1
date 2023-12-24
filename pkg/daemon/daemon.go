@@ -784,7 +784,7 @@ func (dn *Daemon) restartDevicePluginPod() error {
 
 func (dn *Daemon) rebootNode() {
 	log.Log.Info("rebootNode(): trigger node reboot")
-	exit, err := dn.HostHelpers.Chroot("/host")
+	exit, err := dn.HostHelpers.Chroot(consts.Host)
 	if err != nil {
 		log.Log.Error(err, "rebootNode(): chroot command failed")
 	}

@@ -95,12 +95,12 @@ func (p *VirtualPlugin) Apply() error {
 			return nil
 		}
 	}
-	exit, err := p.helpers.Chroot("/host")
+	exit, err := p.helpers.Chroot(consts.Host)
 	if err != nil {
 		return err
 	}
 	defer exit()
-	if err := SyncNodeStateVirtual(p.DesireState, p.helpers); err != nil {
+	if err := syncNodeStateVirtual(p.DesireState, p.helpers); err != nil {
 		return err
 	}
 	p.LastState = &sriovnetworkv1.SriovNetworkNodeState{}
@@ -127,18 +127,18 @@ func needVfioDriver(state *sriovnetworkv1.SriovNetworkNodeState) bool {
 	return false
 }
 
-// SyncNodeStateVirtual attempt to update the node state to match the desired state in virtual platforms
-func SyncNodeStateVirtual(newState *sriovnetworkv1.SriovNetworkNodeState, helpers plugin.HostHelpersInterface) error {
+// syncNodeStateVirtual attempt to update the node state to match the desired state in virtual platforms
+func syncNodeStateVirtual(newState *sriovnetworkv1.SriovNetworkNodeState, helpers plugin.HostHelpersInterface) error {
 	var err error
 	for _, ifaceStatus := range newState.Status.Interfaces {
 		for _, iface := range newState.Spec.Interfaces {
 			if iface.PciAddress == ifaceStatus.PciAddress {
 				if !needUpdateVirtual(&iface, &ifaceStatus) {
-					log.Log.V(2).Info("SyncNodeStateVirtual(): no need update interface", "address", iface.PciAddress)
+					log.Log.V(2).Info("syncNodeStateVirtual(): no need update interface", "address", iface.PciAddress)
 					break
 				}
 				if err = helpers.ConfigSriovDeviceVirtual(&iface); err != nil {
-					log.Log.Error(err, "SyncNodeStateVirtual(): fail to config sriov interface", "address", iface.PciAddress)
+					log.Log.Error(err, "syncNodeStateVirtual(): fail to config sriov interface", "address", iface.PciAddress)
 					return err
 				}
 				break

@@ -35,15 +35,15 @@ const (
 	sriovSystemdSupportedNicPath  = consts.SriovConfBasePath + "/sriov-supported-nics-ids.yaml"
 	sriovSystemdServiceBinaryPath = "/var/lib/sriov/sriov-network-config-daemon"
 
-	SriovHostSystemdConfigPath        = "/host" + SriovSystemdConfigPath
-	SriovHostSystemdResultPath        = "/host" + SriovSystemdResultPath
-	sriovHostSystemdSupportedNicPath  = "/host" + sriovSystemdSupportedNicPath
-	sriovHostSystemdServiceBinaryPath = "/host" + sriovSystemdServiceBinaryPath
+	SriovHostSystemdConfigPath        = consts.Host + SriovSystemdConfigPath
+	SriovHostSystemdResultPath        = consts.Host + SriovSystemdResultPath
+	sriovHostSystemdSupportedNicPath  = consts.Host + sriovSystemdSupportedNicPath
+	sriovHostSystemdServiceBinaryPath = consts.Host + sriovSystemdServiceBinaryPath
 
 	SriovServicePath     = "/etc/systemd/system/sriov-config.service"
-	SriovHostServicePath = "/host" + SriovServicePath
+	SriovHostServicePath = consts.Host + SriovServicePath
 
-	HostSriovConfBasePath = "/host" + consts.SriovConfBasePath
+	HostSriovConfBasePath = consts.Host + consts.SriovConfBasePath
 )
 
 // TODO: move this to the host interface also

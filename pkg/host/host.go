@@ -28,12 +28,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
 const (
-	hostPathFromDaemon    = "/host"
+	hostPathFromDaemon    = consts.Host
 	redhatReleaseFile     = "/etc/redhat-release"
 	rhelRDMAConditionFile = "/usr/libexec/rdma-init-kernel"
 	rhelRDMAServiceName   = "rdma"

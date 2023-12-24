@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
@@ -110,12 +111,12 @@ func GetHostExtension() string {
 	if vars.InChroot {
 		return vars.FilesystemRoot
 	}
-	return filepath.Join(vars.FilesystemRoot, "/host")
+	return filepath.Join(vars.FilesystemRoot, consts.Host)
 }
 
 func GetChrootExtension() string {
 	if vars.InChroot {
 		return vars.FilesystemRoot
 	}
-	return fmt.Sprintf("chroot %s/host", vars.FilesystemRoot)
+	return fmt.Sprintf("chroot %s%s", vars.FilesystemRoot, consts.Host)
 }

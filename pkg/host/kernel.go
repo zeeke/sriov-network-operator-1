@@ -14,7 +14,7 @@ import (
 func (h *hostManager) GetCurrentKernelArgs() (string, error) {
 	path := consts.ProcKernelCmdLine
 	if !vars.UsingSystemdMode {
-		path = filepath.Join("/host", path)
+		path = filepath.Join(consts.Host, path)
 	}
 
 	path = filepath.Join(vars.FilesystemRoot, path)

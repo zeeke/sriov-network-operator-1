@@ -155,7 +155,7 @@ func (p *GenericPlugin) Apply() error {
 
 	// When calling from systemd do not try to chroot
 	if !vars.UsingSystemdMode {
-		exit, err := p.helpers.Chroot("/host")
+		exit, err := p.helpers.Chroot(consts.Host)
 		if err != nil {
 			return err
 		}

@@ -11,6 +11,9 @@ type DrainState string
 type PlatformTypes int
 
 const (
+	Chroot = "/host"
+	Host   = "/host"
+
 	ResyncPeriod                       = 5 * time.Minute
 	DefaultConfigName                  = "default"
 	ConfigDaemonPath                   = "./bindata/manifests/daemon"
@@ -48,7 +51,7 @@ const (
 	SriovConfBasePath          = "/etc/sriov-operator"
 	PfAppliedConfig            = SriovConfBasePath + "/pci"
 	SriovSwitchDevConfPath     = SriovConfBasePath + "/sriov_config.json"
-	SriovHostSwitchDevConfPath = "/host" + SriovSwitchDevConfPath
+	SriovHostSwitchDevConfPath = Host + SriovSwitchDevConfPath
 
 	DrainAnnotationState         = "sriovnetwork.openshift.io/state"
 	DrainAnnotationStateRequired = "sriovnetwork.openshift.io/state-required"
@@ -84,15 +87,13 @@ const (
 
 	UdevFolder          = "/etc/udev"
 	UdevRulesFolder     = UdevFolder + "/rules.d"
-	HostUdevRulesFolder = "/host" + UdevRulesFolder
+	HostUdevRulesFolder = Host + UdevRulesFolder
 	UdevDisableNM       = "/bindata/scripts/udev-find-sriov-pf.sh"
 	NMUdevRule          = "SUBSYSTEM==\"net\", ACTION==\"add|change|move\", ATTRS{device}==\"%s\", IMPORT{program}=\"/etc/udev/disable-nm-sriov.sh $env{INTERFACE} %s\""
 
 	KernelArgPciRealloc = "pci=realloc"
 	KernelArgIntelIommu = "intel_iommu=on"
 	KernelArgIommuPt    = "iommu=pt"
-
-	Chroot = "/host"
 )
 
 const (

@@ -91,9 +91,10 @@ func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetwo
 				return
 			}
 
+			// TODO: refactor this function to allow using vars.FilesystemRoot for unit-tests
 			// Create the sriov-operator folder on the host if it doesn't exist
-			if _, err := os.Stat("/host" + consts.SriovConfBasePath); os.IsNotExist(err) {
-				err = os.Mkdir("/host"+consts.SriovConfBasePath, os.ModeDir)
+			if _, err := os.Stat(consts.Host + consts.SriovConfBasePath); os.IsNotExist(err) {
+				err = os.Mkdir(consts.Host+consts.SriovConfBasePath, os.ModeDir)
 				if err != nil {
 					log.Log.Error(err, "WriteConfFile(): failed to create sriov-operator folder")
 					return false, err
