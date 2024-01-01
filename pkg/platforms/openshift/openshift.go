@@ -39,7 +39,7 @@ type openshiftContext struct {
 	OpenshiftFlavor OpenshiftFlavor
 }
 
-func NewOpenshiftContext() (OpenshiftContextInterface, error) {
+func New() (OpenshiftContextInterface, error) {
 	if vars.ClusterType != consts.ClusterTypeOpenshift {
 		return &openshiftContext{nil, false, ""}, nil
 	}

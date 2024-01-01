@@ -17,12 +17,12 @@ type platformHelper struct {
 }
 
 func NewDefaultPlatformHelper() (Interface, error) {
-	openshiftContext, err := openshift.NewOpenshiftContext()
+	openshiftContext, err := openshift.New()
 	if err != nil {
 		return nil, err
 	}
 
-	openstackContext := openstack.NewOpenstackContext()
+	openstackContext := openstack.New()
 
 	return &platformHelper{
 		openshiftContext,

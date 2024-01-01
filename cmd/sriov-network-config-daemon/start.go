@@ -109,6 +109,8 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 	var config *rest.Config
 	var err error
 
+	// On openshift we use the kubeconfig from kubelet on the node where the daemon is running
+	// this allow us to improve security as every daemon has access only to its own node
 	if vars.ClusterType == consts.ClusterTypeOpenshift {
 		kubeconfig, err := clientcmd.LoadFromFile("/host/etc/kubernetes/kubeconfig")
 		if err != nil {

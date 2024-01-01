@@ -100,7 +100,7 @@ type OSPDeviceInfo struct {
 	NetworkID  string
 }
 
-func NewOpenstackContext() OpenstackInterface {
+func New() OpenstackInterface {
 	return &openstackContext{}
 }
 

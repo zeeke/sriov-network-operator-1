@@ -46,7 +46,7 @@ func (h *hostManager) PrepareNMUdevRule(supportedVfIds []string) error {
 	return nil
 }
 
-func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetworkNodeState, pfsToSkip map[string]bool) (update bool, err error) {
+func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetworkNodeState, pfsToSkip map[string]bool) (bool, error) {
 	cfg := config{}
 	for _, iface := range newState.Spec.Interfaces {
 		for _, ifaceStatus := range newState.Status.Interfaces {
@@ -58,7 +58,6 @@ func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetwo
 				continue
 			}
 
-			i := sriovnetworkv1.Interface{}
 			if iface.NumVfs > 0 {
 				var vfGroups []sriovnetworkv1.VfGroup = nil
 				ifc, err := sriovnetworkv1.FindInterface(newState.Spec.Interfaces, iface.Name)
@@ -67,7 +66,7 @@ func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetwo
 				} else {
 					vfGroups = ifc.VfGroups
 				}
-				i = sriovnetworkv1.Interface{
+				i := sriovnetworkv1.Interface{
 					// Not passing all the contents, since only NumVfs and EswitchMode can be configured by configure-switchdev.sh currently.
 					Name:       iface.Name,
 					PciAddress: iface.PciAddress,
@@ -83,12 +82,11 @@ func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetwo
 			}
 		}
 	}
-	_, err = os.Stat(consts.SriovHostSwitchDevConfPath)
+	_, err := os.Stat(consts.SriovHostSwitchDevConfPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			if len(cfg.Interfaces) == 0 {
-				err = nil
-				return
+				return false, nil
 			}
 
 			// TODO: refactor this function to allow using vars.FilesystemRoot for unit-tests
@@ -105,38 +103,37 @@ func (h *hostManager) WriteSwitchdevConfFile(newState *sriovnetworkv1.SriovNetwo
 			_, err = os.Create(consts.SriovHostSwitchDevConfPath)
 			if err != nil {
 				log.Log.Error(err, "WriteSwitchdevConfFile(): failed to create file")
-				return
+				return false, err
 			}
 		} else {
-			return
+			return false, err
 		}
 	}
 	oldContent, err := os.ReadFile(consts.SriovHostSwitchDevConfPath)
 	if err != nil {
 		log.Log.Error(err, "WriteSwitchdevConfFile(): failed to read file")
-		return
+		return false, err
 	}
 	var newContent []byte
 	if len(cfg.Interfaces) != 0 {
 		newContent, err = json.Marshal(cfg)
 		if err != nil {
 			log.Log.Error(err, "WriteSwitchdevConfFile(): fail to marshal config")
-			return
+			return false, err
 		}
 	}
 
 	if bytes.Equal(newContent, oldContent) {
 		log.Log.V(2).Info("WriteSwitchdevConfFile(): no update")
-		return
+		return false, nil
 	}
-	update = true
 	log.Log.V(2).Info("WriteSwitchdevConfFile(): write to switchdev.conf", "content", newContent)
 	err = os.WriteFile(consts.SriovHostSwitchDevConfPath, newContent, 0644)
 	if err != nil {
 		log.Log.Error(err, "WriteSwitchdevConfFile(): failed to write file")
-		return
+		return false, err
 	}
-	return
+	return true, nil
 }
 
 func (h *hostManager) AddUdevRule(pfPciAddress string) error {

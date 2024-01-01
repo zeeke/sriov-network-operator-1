@@ -72,8 +72,7 @@ func (r *SriovOperatorConfigReconciler) Reconcile(ctx context.Context, req ctrl.
 
 	logger.Info("Reconciling SriovOperatorConfig")
 
-	enableAdmissionController := os.Getenv("ADMISSION_CONTROLLERS_ENABLED") == trueString
-	if !enableAdmissionController {
+	if !vars.EnableAdmissionController {
 		logger.Info("SR-IOV Network Resource Injector and Operator Webhook are disabled.")
 	}
 	defaultConfig := &sriovnetworkv1.SriovOperatorConfig{}
@@ -90,8 +89,8 @@ func (r *SriovOperatorConfigReconciler) Reconcile(ctx context.Context, req ctrl.
 			defaultConfig.SetNamespace(namespace)
 			defaultConfig.SetName(consts.DefaultConfigName)
 			defaultConfig.Spec = sriovnetworkv1.SriovOperatorConfigSpec{
-				EnableInjector:           func() *bool { b := enableAdmissionController; return &b }(),
-				EnableOperatorWebhook:    func() *bool { b := enableAdmissionController; return &b }(),
+				EnableInjector:           func() *bool { b := vars.EnableAdmissionController; return &b }(),
+				EnableOperatorWebhook:    func() *bool { b := vars.EnableAdmissionController; return &b }(),
 				ConfigDaemonNodeSelector: map[string]string{},
 				LogLevel:                 2,
 				DisableDrain:             singleNode,
