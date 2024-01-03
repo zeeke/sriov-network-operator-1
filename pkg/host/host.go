@@ -59,6 +59,22 @@ type HostManagerInterface interface {
 	// if the package doesn't exist it will also will try to install it
 	// supported operating systems are RHEL RHCOS and ubuntu
 	TryEnableRdma() (bool, error)
+	// RdmaIsLoaded returns try if RDMA kernel modules are loaded
+	RdmaIsLoaded() (bool, error)
+	// EnableRDMA enable RDMA on the system
+	EnableRDMA(string, string, string) (bool, error)
+	// InstallRDMA install RDMA packages on the system
+	InstallRDMA(string) error
+
+	NetworkInterface
+	DriverInterface
+	DriverInterface
+	UdevInterface
+	ServiceInterface
+	KernelInterface
+}
+
+type NetworkInterface interface {
 	// TryToGetVirtualInterfaceName tries to find the virtio interface name base on pci address
 	// used for virtual environment where we pass SR-IOV virtual function into the system
 	// supported platform openstack
@@ -110,7 +126,9 @@ type HostManagerInterface interface {
 	ConfigSriovInterfaces(StoreManagerInterface, []sriovnetworkv1.Interface, []sriovnetworkv1.InterfaceExt, map[string]bool) error
 	// ConfigSriovInterfaces configure virtual functions for virtual environments with the desired configuration
 	ConfigSriovDeviceVirtual(iface *sriovnetworkv1.Interface) error
+}
 
+type DriverInterface interface {
 	// Unbind unbinds a virtual function from is current driver
 	Unbind(string) error
 	// BindDpdkDriver binds the virtual function to a DPDK driver
@@ -123,7 +141,9 @@ type HostManagerInterface interface {
 	RebindVfToDefaultDriver(string) error
 	// UnbindDriverIfNeeded unbinds the virtual function from a driver if needed
 	UnbindDriverIfNeeded(string, bool) error
+}
 
+type UdevInterface interface {
 	// WriteSwitchdevConfFile writes the needed switchdev configuration files for HW offload support
 	WriteSwitchdevConfFile(*sriovnetworkv1.SriovNetworkNodeState, map[string]bool) (bool, error)
 	// PrepareNMUdevRule creates the needed udev rules to disable NetworkManager from
@@ -138,7 +158,9 @@ type HostManagerInterface interface {
 	GetCurrentKernelArgs() (string, error)
 	// IsKernelArgsSet check is the requested kernel arguments are set
 	IsKernelArgsSet(string, string) bool
+}
 
+type ServiceInterface interface {
 	// IsServiceExist checks if the requested systemd service exist on the system
 	IsServiceExist(string) (bool, error)
 	// IsServiceEnabled checks if the requested systemd service is enabled on the system
@@ -157,7 +179,9 @@ type HostManagerInterface interface {
 	ReadServiceInjectionManifestFile(path string) (*Service, error)
 	// CompareServices compare two servers and return true if they are equal
 	CompareServices(serviceA, serviceB *Service) (bool, error)
+}
 
+type KernelInterface interface {
 	// private functions
 	// part of the interface for the mock generation
 	// LoadKernelModule loads a kernel module to the host
@@ -170,12 +194,6 @@ type HostManagerInterface interface {
 	IsUbuntuSystem() (bool, error)
 	// IsCoreOS returns true if the system is a CoreOS or RHCOS base
 	IsCoreOS() (bool, error)
-	// RdmaIsLoaded returns try if RDMA kernel modules are loaded
-	RdmaIsLoaded() (bool, error)
-	// EnableRDMA enable RDMA on the system
-	EnableRDMA(string, string, string) (bool, error)
-	// InstallRDMA install RDMA packages on the system
-	InstallRDMA(string) error
 	// TriggerUdevEvent triggers a udev event
 	TriggerUdevEvent() error
 	// ReloadDriver reloads a requested driver

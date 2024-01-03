@@ -33,7 +33,7 @@ type NodeStateStatusWriter struct {
 	OnHeartbeatFailure func()
 	platformHelper     platforms.Interface
 	storeManager       host.StoreManagerInterface
-	hostManager        host.HostManagerInterface
+	hostManager        host.NetworkInterface
 	eventRecorder      *EventRecorder
 }
 

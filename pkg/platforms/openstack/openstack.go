@@ -43,7 +43,7 @@ type OpenstackInterface interface {
 }
 
 type openstackContext struct {
-	hostManager          host.HostManagerInterface
+	hostManager          host.NetworkInterface
 	openStackDevicesInfo OSPDevicesInfo
 }
 
