@@ -10,9 +10,11 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	. "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 
 	fakesnclientset "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/client/clientset/versioned/fake"
 )
@@ -148,6 +150,19 @@ func newDefaultOperatorConfig() *SriovOperatorConfig {
 	}
 }
 
+func newDefaultNetworkPoolConfig() *SriovNetworkPoolConfig {
+	maxUn := intstr.FromInt32(1)
+	return &SriovNetworkPoolConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default",
+		},
+		Spec: SriovNetworkPoolConfigSpec{
+			MaxUnavailable: &maxUn,
+			NodeSelector:   &metav1.LabelSelector{MatchLabels: map[string]string{}},
+		},
+	}
+}
+
 func TestValidateSriovOperatorConfigWithDefaultOperatorConfig(t *testing.T) {
 	g := NewGomegaWithT(t)
 
@@ -206,6 +221,41 @@ func TestValidateSriovOperatorConfigDisableDrain(t *testing.T) {
 	g.Expect(ok).To(Equal(true))
 }
 
+func TestValidateSriovNetworkPoolConfigWithDefault(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	config := newDefaultNetworkPoolConfig()
+	snclient = fakesnclientset.NewSimpleClientset()
+
+	ok, _, err := validateSriovNetworkPoolConfig(config, "DELETE")
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(ok).To(Equal(false))
+
+	ok, _, err = validateSriovNetworkPoolConfig(config, "UPDATE")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(ok).To(Equal(true))
+
+	ok, _, err = validateSriovNetworkPoolConfig(config, "CREATE")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(ok).To(Equal(true))
+}
+
+func TestValidateSriovNetworkPoolConfigWithParallelAndHWOffload(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	config := newDefaultNetworkPoolConfig()
+	config.Spec.OvsHardwareOffloadConfig.Name = "test"
+	snclient = fakesnclientset.NewSimpleClientset()
+
+	ok, _, err := validateSriovNetworkPoolConfig(config, "UPDATE")
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(ok).To(BeFalse())
+
+	ok, _, err = validateSriovNetworkPoolConfig(config, "CREATE")
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(ok).To(BeFalse())
+}
+
 func TestValidateSriovNetworkNodePolicyWithDefaultPolicy(t *testing.T) {
 	var err error
 	var ok bool
@@ -222,6 +272,7 @@ func TestValidateSriovNetworkNodePolicyWithDefaultPolicy(t *testing.T) {
 		},
 	}
 	os.Setenv("NAMESPACE", "openshift-sriov-network-operator")
+	vars.Namespace = "openshift-sriov-network-operator"
 	g := NewGomegaWithT(t)
 	ok, w, err := validateSriovNetworkNodePolicy(policy, "DELETE")
 	g.Expect(err).NotTo(HaveOccurred())
