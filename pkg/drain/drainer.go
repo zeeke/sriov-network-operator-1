@@ -34,19 +34,17 @@ type DrainInterface interface {
 }
 
 type Drainer struct {
-	resourcePrefix  string
 	kubeClient      kubernetes.Interface
 	platformHelpers platforms.Interface
 }
 
-func NewDrainer(resourcePrefix string, platformHelpers platforms.Interface) (DrainInterface, error) {
+func NewDrainer(platformHelpers platforms.Interface) (DrainInterface, error) {
 	kclient, err := kubernetes.NewForConfig(vars.Config)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Drainer{
-		resourcePrefix:  resourcePrefix,
 		kubeClient:      kclient,
 		platformHelpers: platformHelpers,
 	}, err
@@ -70,7 +68,7 @@ func (d *Drainer) DrainNode(ctx context.Context, node *corev1.Node, fullNodeDrai
 		return false, nil
 	}
 
-	drainHelper := createDrainHelper(d.kubeClient, ctx, d.resourcePrefix, fullNodeDrain)
+	drainHelper := createDrainHelper(d.kubeClient, ctx, fullNodeDrain)
 	backoff := wait.Backoff{
 		Steps:    5,
 		Duration: 10 * time.Second,
@@ -113,7 +111,7 @@ func (d *Drainer) CompleteDrainNode(ctx context.Context, node *corev1.Node) (boo
 
 	// Create drain helper object
 	// full drain is not important here
-	drainHelper := createDrainHelper(d.kubeClient, ctx, d.resourcePrefix, false)
+	drainHelper := createDrainHelper(d.kubeClient, ctx, false)
 
 	// run the un cordon function on the node
 	if err := drain.RunCordonOrUncordon(drainHelper, node, false); err != nil {
@@ -136,7 +134,7 @@ func (d *Drainer) CompleteDrainNode(ctx context.Context, node *corev1.Node) (boo
 // createDrainHelper function to create a drain helper
 // if fullDrain is false we only remove pods that have the resourcePrefix
 // if not we remove all the pods in the node
-func createDrainHelper(kubeClient kubernetes.Interface, ctx context.Context, resourcePrefix string, fullDrain bool) *drain.Helper {
+func createDrainHelper(kubeClient kubernetes.Interface, ctx context.Context, fullDrain bool) *drain.Helper {
 	logger := log.FromContext(ctx)
 	drainer := &drain.Helper{
 		Client:              kubeClient,
@@ -163,7 +161,7 @@ func createDrainHelper(kubeClient kubernetes.Interface, ctx context.Context, res
 			for _, c := range p.Spec.Containers {
 				if c.Resources.Requests != nil {
 					for r := range c.Resources.Requests {
-						if strings.HasPrefix(r.String(), resourcePrefix) {
+						if strings.HasPrefix(r.String(), vars.ResourcePrefix) {
 							return drain.PodDeleteStatus{
 								Delete:  true,
 								Reason:  "pod contain SR-IOV device",

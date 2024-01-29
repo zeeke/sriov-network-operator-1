@@ -482,44 +482,13 @@ func (dn *Daemon) nodeStateSyncHandler() error {
 		}
 	}
 
-	if reqDrain ||
-		(utils.ObjectHasAnnotationKey(dn.desiredNodeState, consts.NodeStateDrainAnnotationCurrent) &&
-			!utils.ObjectHasAnnotation(dn.desiredNodeState, consts.NodeStateDrainAnnotationCurrent, consts.DrainIdle)) {
-		if utils.ObjectHasAnnotation(dn.desiredNodeState, consts.NodeStateDrainAnnotationCurrent, consts.DrainComplete) {
-			log.Log.Info("nodeStateSyncHandler(): the node complete the draining")
-		} else if !dn.isNodeDraining() {
-			if !dn.disableDrain {
-				if reqReboot {
-					log.Log.Info("nodeStateSyncHandler(): apply 'Reboot_Required' label for node")
-					if err := dn.applyRequirement(consts.RebootRequired); err != nil {
-						return err
-					}
-
-					log.Log.Info("nodeStateSyncHandler(): apply 'Reboot_Required' label for nodeState")
-					if err := utils.AnnotateObject(dn.desiredNodeState,
-						consts.NodeStateDrainAnnotation,
-						consts.RebootRequired, dn.client); err != nil {
-						return err
-					}
-
-					return nil
-				}
-				log.Log.Info("nodeStateSyncHandler(): apply 'Drain_Required' label for node")
-				if err := dn.applyRequirement(consts.DrainRequired); err != nil {
-					return err
-				}
-
-				log.Log.Info("nodeStateSyncHandler(): apply 'Drain_Required' label for nodeState")
-				if err := utils.AnnotateObject(dn.desiredNodeState,
-					consts.NodeStateDrainAnnotation,
-					consts.DrainRequired, dn.client); err != nil {
-					return err
-				}
-				return nil
-			}
-		} else {
-			log.Log.Info("nodeStateSyncHandler(): the node is still draining waiting")
-			return nil
+	// handle drain only if the plugin request drain, or we are already in a draining request state
+	if reqDrain || !utils.ObjectHasAnnotation(dn.desiredNodeState,
+		consts.NodeStateDrainAnnotationCurrent,
+		consts.DrainIdle) {
+		if err := dn.handleDrain(reqReboot); err != nil {
+			log.Log.Error(err, "failed to handle drain")
+			return err
 		}
 	}
 
@@ -601,6 +570,52 @@ func (dn *Daemon) isNodeDraining() bool {
 	}
 
 	return anno == consts.Draining
+}
+
+func (dn *Daemon) handleDrain(reqReboot bool) error {
+	if utils.ObjectHasAnnotation(dn.desiredNodeState, consts.NodeStateDrainAnnotationCurrent, consts.DrainComplete) {
+		log.Log.Info("handleDrain(): the node complete the draining")
+		return nil
+	}
+
+	if dn.isNodeDraining() {
+		log.Log.Info("handleDrain(): the node is still draining waiting")
+		return nil
+	}
+
+	if dn.disableDrain {
+		log.Log.Info("handleDrain(): drain is disabled in sriovOperatorConfig")
+		return nil
+	}
+
+	if reqReboot {
+		log.Log.Info("handleDrain(): apply 'Reboot_Required' label for node")
+		if err := dn.applyRequirement(consts.RebootRequired); err != nil {
+			return err
+		}
+
+		log.Log.Info("handleDrain(): apply 'Reboot_Required' label for nodeState")
+		if err := utils.AnnotateObject(dn.desiredNodeState,
+			consts.NodeStateDrainAnnotation,
+			consts.RebootRequired, dn.client); err != nil {
+			return err
+		}
+
+		return nil
+	}
+	log.Log.Info("handleDrain(): apply 'Drain_Required' label for node")
+	if err := dn.applyRequirement(consts.DrainRequired); err != nil {
+		return err
+	}
+
+	log.Log.Info("handleDrain(): apply 'Drain_Required' label for nodeState")
+	if err := utils.AnnotateObject(dn.desiredNodeState,
+		consts.NodeStateDrainAnnotation,
+		consts.DrainRequired, dn.client); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (dn *Daemon) applyRequirement(label string) error {

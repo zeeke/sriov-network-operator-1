@@ -99,6 +99,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if vars.ResourcePrefix == "" {
+		setupLog.Error(nil, "RESOURCE_PREFIX environment variable can't be empty")
+		os.Exit(1)
+	}
+
 	le := leaderelection.GetLeaderElectionConfig(kubeClient, enableLeaderElection)
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{

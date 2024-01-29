@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -50,10 +49,9 @@ import (
 
 type DrainReconcile struct {
 	client.Client
-	Scheme         *runtime.Scheme
-	recorder       record.EventRecorder
-	drainer        drain.DrainInterface
-	resourcePrefix string
+	Scheme   *runtime.Scheme
+	recorder record.EventRecorder
+	drainer  drain.DrainInterface
 
 	nodesInReconcile      map[string]interface{}
 	nodesInReconcileMutex sync.Mutex
@@ -61,12 +59,7 @@ type DrainReconcile struct {
 }
 
 func NewDrainReconcileController(client client.Client, Scheme *runtime.Scheme, recorder record.EventRecorder, platformHelper platforms.Interface) (*DrainReconcile, error) {
-	resourcePrefix := os.Getenv("RESOURCE_PREFIX")
-	if resourcePrefix == "" {
-		return nil, fmt.Errorf("RESOURCE_PREFIX environment variable can't be empty")
-	}
-
-	drainer, err := drain.NewDrainer(resourcePrefix, platformHelper)
+	drainer, err := drain.NewDrainer(platformHelper)
 	if err != nil {
 		return nil, err
 	}
@@ -76,12 +69,11 @@ func NewDrainReconcileController(client client.Client, Scheme *runtime.Scheme, r
 		Scheme,
 		recorder,
 		drainer,
-		resourcePrefix,
 		map[string]interface{}{},
 		sync.Mutex{},
 		sync.Mutex{}}, nil
 }
-func (dr *DrainReconcile) TryLockNode(nodeName string) bool {
+func (dr *DrainReconcile) tryLockNode(nodeName string) bool {
 	dr.nodesInReconcileMutex.Lock()
 	defer dr.nodesInReconcileMutex.Unlock()
 
@@ -112,7 +104,7 @@ func (dr *DrainReconcile) unlockNode(nodeName string) {
 func (dr *DrainReconcile) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// try to lock the node to this reconcile loop.
 	// if we are not able this means there is another loop already handling this node, so we just exist
-	if !dr.TryLockNode(req.Name) {
+	if !dr.tryLockNode(req.Name) {
 		return ctrl.Result{}, nil
 	}
 
@@ -136,48 +128,32 @@ func (dr *DrainReconcile) reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// get node object
 	node := &corev1.Node{}
-	err := dr.Get(ctx, req.NamespacedName, node)
+	err := dr.getObject(ctx, req, node)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			reqLogger.Error(err, "node object doesn't exist", "nodeName", req.Name)
-			return ctrl.Result{}, nil
-		}
-
-		reqLogger.Error(err, "failed to get node object from api re-queue the request", "nodeName", req.Name)
+		reqLogger.Error(err, "failed to get node object")
 		return ctrl.Result{}, err
 	}
 
 	// get sriovNodeNodeState object
 	nodeNetworkState := &sriovnetworkv1.SriovNetworkNodeState{}
-	err = dr.Get(ctx, req.NamespacedName, nodeNetworkState)
+	err = dr.getObject(ctx, req, nodeNetworkState)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			reqLogger.Error(err, "sriovNetworkNodeState object doesn't exist", "nodeName", req.Name)
-			return ctrl.Result{}, nil
-		}
-
-		reqLogger.Error(err, "failed to get sriovNetworkNodeState object from api re-queue the request", "nodeName", req.Name)
+		reqLogger.Error(err, "failed to get sriovNetworkNodeState object")
 		return ctrl.Result{}, err
 	}
 
 	// create the drain state annotation if it doesn't exist in the sriovNetworkNodeState object
-	nodeStateDrainAnnotationCurrent, NodeStateDrainAnnotationCurrentExist := nodeNetworkState.Annotations[constants.NodeStateDrainAnnotationCurrent]
-	if !NodeStateDrainAnnotationCurrentExist {
-		err = utils.AnnotateObject(nodeNetworkState, constants.NodeStateDrainAnnotationCurrent, constants.DrainIdle, dr.Client)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		nodeStateDrainAnnotationCurrent = constants.DrainIdle
+	nodeStateDrainAnnotationCurrent, err := dr.ensureAnnotationExists(nodeNetworkState, constants.NodeStateDrainAnnotationCurrent)
+	if err != nil {
+		reqLogger.Error(err, "failed to ensure nodeStateDrainAnnotation")
+		return ctrl.Result{}, err
 	}
 
 	// create the drain state annotation if it doesn't exist in the node object
-	nodeDrainAnnotation, nodeDrainAnnotationExist := node.Annotations[constants.NodeDrainAnnotation]
-	if !nodeDrainAnnotationExist {
-		err = utils.AnnotateObject(node, constants.NodeDrainAnnotation, constants.DrainIdle, dr.Client)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		nodeDrainAnnotation = constants.DrainIdle
+	nodeDrainAnnotation, err := dr.ensureAnnotationExists(node, constants.NodeDrainAnnotation)
+	if err != nil {
+		reqLogger.Error(err, "failed to ensure nodeStateDrainAnnotation")
+		return ctrl.Result{}, err
 	}
 
 	reqLogger.V(2).Info("Drain annotations", "nodeAnnotation", nodeDrainAnnotation, "nodeStateAnnotation", nodeStateDrainAnnotationCurrent)
@@ -218,6 +194,7 @@ func (dr *DrainReconcile) reconcile(ctx context.Context, req ctrl.Request) (ctrl
 					corev1.EventTypeWarning,
 					"DrainController",
 					"node complete drain was not completed")
+				// TODO: make this time configurable
 				return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 
@@ -235,7 +212,7 @@ func (dr *DrainReconcile) reconcile(ctx context.Context, req ctrl.Request) (ctrl
 				"node un drain completed")
 			return ctrl.Result{}, nil
 		}
-	} else {
+	} else if nodeDrainAnnotation == constants.DrainRequired || nodeDrainAnnotation == constants.RebootRequired {
 		// this cover the case a node request to drain or reboot
 
 		// nothing to do here we need to wait for the node to move back to idle
@@ -296,6 +273,38 @@ func (dr *DrainReconcile) reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	reqLogger.Error(nil, "unexpected node drain annotation")
 	return reconcile.Result{}, fmt.Errorf("unexpected node drain annotation")
+}
+
+func (dr *DrainReconcile) getObject(ctx context.Context, req ctrl.Request, object client.Object) error {
+	// configure logs
+	reqLogger := log.FromContext(ctx)
+	reqLogger.Info("checkForNodeDrain():")
+
+	err := dr.Get(ctx, req.NamespacedName, object)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			reqLogger.Error(err, "object doesn't exist", "objectName", req.Name)
+			return nil
+		}
+
+		reqLogger.Error(err, "failed to get object from api re-queue the request", "objectName", req.Name)
+		return err
+	}
+
+	return nil
+}
+
+func (dr *DrainReconcile) ensureAnnotationExists(object client.Object, key string) (string, error) {
+	value, exist := object.GetAnnotations()[key]
+	if !exist {
+		err := utils.AnnotateObject(object, constants.NodeStateDrainAnnotationCurrent, constants.DrainIdle, dr.Client)
+		if err != nil {
+			return "", err
+		}
+		return constants.DrainIdle, nil
+	}
+
+	return value, nil
 }
 
 func (dr *DrainReconcile) checkForNodeDrain(ctx context.Context, node *corev1.Node) (*reconcile.Result, error) {

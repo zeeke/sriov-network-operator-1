@@ -2,24 +2,101 @@ package controllers
 
 import (
 	"context"
+	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/golang/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	constants "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
+	mock_platforms "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms/mock"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms/openshift"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 )
 
-var _ = Describe("Drain Controller", func() {
+var _ = Describe("Drain Controller", Ordered, func() {
+
+	var cancel context.CancelFunc
+	var ctx context.Context
+
+	BeforeAll(func() {
+		By("Create default SriovNetworkPoolConfig k8s objs")
+		maxun := intstr.Parse("1")
+		poolConfig := &sriovnetworkv1.SriovNetworkPoolConfig{}
+		poolConfig.SetNamespace(testNamespace)
+		poolConfig.SetName(constants.DefaultConfigName)
+		poolConfig.Spec = sriovnetworkv1.SriovNetworkPoolConfigSpec{MaxUnavailable: &maxun, NodeSelector: &metav1.LabelSelector{}}
+		Expect(k8sClient.Create(context.Background(), poolConfig)).Should(Succeed())
+		DeferCleanup(func() {
+			err := k8sClient.Delete(context.Background(), poolConfig)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		By("Setup controller manager")
+		k8sManager, err := setupK8sManagerForTest()
+		Expect(err).ToNot(HaveOccurred())
+
+		t := GinkgoT()
+		mockCtrl := gomock.NewController(t)
+		platformHelper := mock_platforms.NewMockInterface(mockCtrl)
+		platformHelper.EXPECT().GetFlavor().Return(openshift.OpenshiftFlavorDefault).AnyTimes()
+		platformHelper.EXPECT().IsOpenshiftCluster().Return(false).AnyTimes()
+		platformHelper.EXPECT().IsHypershift().Return(false).AnyTimes()
+		platformHelper.EXPECT().OpenshiftDrainNode(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+		platformHelper.EXPECT().OpenshiftCompleteDrainNode(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+
+		// we need a client that doesn't use the local cache for the objects
+		drainKClient, err := client.New(cfg, client.Options{
+			Scheme: scheme.Scheme,
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{
+					&sriovnetworkv1.SriovNetworkNodeState{},
+					&corev1.Node{},
+					&mcfgv1.MachineConfigPool{},
+				},
+			},
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		drainController, err := NewDrainReconcileController(drainKClient,
+			k8sManager.GetScheme(),
+			k8sManager.GetEventRecorderFor("operator"),
+			platformHelper)
+		Expect(err).ToNot(HaveOccurred())
+		err = drainController.SetupWithManager(k8sManager)
+		Expect(err).ToNot(HaveOccurred())
+
+		ctx, cancel = context.WithCancel(context.Background())
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer GinkgoRecover()
+			By("Start controller manager")
+			err := k8sManager.Start(ctx)
+			Expect(err).ToNot(HaveOccurred())
+		}()
+
+		DeferCleanup(func() {
+			By("Shutdown controller manager")
+			cancel()
+			wg.Wait()
+		})
+	})
+
 	BeforeEach(func() {
 		Expect(k8sClient.DeleteAllOf(context.Background(), &corev1.Node{})).ToNot(HaveOccurred())
 		Expect(k8sClient.DeleteAllOf(context.Background(), &sriovnetworkv1.SriovNetworkNodeState{}, client.InNamespace(vars.Namespace))).ToNot(HaveOccurred())
@@ -36,7 +113,7 @@ var _ = Describe("Drain Controller", func() {
 	Context("when there is only one node", func() {
 
 		It("should drain", func(ctx context.Context) {
-			node, nodeState := createNode("node1")
+			node, nodeState := createNode(ctx, "node1")
 
 			simulateDaemonSetAnnotation(node, constants.DrainRequired)
 
@@ -53,9 +130,9 @@ var _ = Describe("Drain Controller", func() {
 	Context("when there are multiple nodes", func() {
 
 		It("should drain nodes serially with default pool selector", func(ctx context.Context) {
-			node1, nodeState1 := createNode("node1")
-			node2, nodeState2 := createNode("node2")
-			node3, nodeState3 := createNode("node3")
+			node1, nodeState1 := createNode(ctx, "node1")
+			node2, nodeState2 := createNode(ctx, "node2")
+			node3, nodeState3 := createNode(ctx, "node3")
 
 			// Two nodes require to drain at the same time
 			simulateDaemonSetAnnotation(node1, constants.DrainRequired)
@@ -93,9 +170,9 @@ var _ = Describe("Drain Controller", func() {
 		})
 
 		It("should drain nodes in parallel with a custom pool selector", func(ctx context.Context) {
-			node1, nodeState1 := createNode("node1")
-			node2, nodeState2 := createNode("node2")
-			node3, nodeState3 := createNode("node3")
+			node1, nodeState1 := createNode(ctx, "node1")
+			node2, nodeState2 := createNode(ctx, "node2")
+			node3, nodeState3 := createNode(ctx, "node3")
 
 			maxun := intstr.Parse("2")
 			poolConfig := &sriovnetworkv1.SriovNetworkPoolConfig{}
@@ -112,7 +189,7 @@ var _ = Describe("Drain Controller", func() {
 			simulateDaemonSetAnnotation(node1, constants.DrainRequired)
 			simulateDaemonSetAnnotation(node2, constants.DrainRequired)
 
-			// Only the first node drains
+			// Both nodes drain
 			expectNodeStateAnnotation(nodeState1, constants.DrainComplete)
 			expectNodeStateAnnotation(nodeState2, constants.DrainComplete)
 			expectNodeStateAnnotation(nodeState3, constants.DrainIdle)
@@ -144,9 +221,9 @@ var _ = Describe("Drain Controller", func() {
 		})
 
 		It("should drain nodes in parallel with a custom pool selector and honor MaxUnavailable", func(ctx context.Context) {
-			node1, nodeState1 := createNode("node1")
-			node2, nodeState2 := createNode("node2")
-			node3, nodeState3 := createNode("node3")
+			node1, nodeState1 := createNode(ctx, "node1")
+			node2, nodeState2 := createNode(ctx, "node2")
+			node3, nodeState3 := createNode(ctx, "node3")
 
 			maxun := intstr.Parse("2")
 			poolConfig := &sriovnetworkv1.SriovNetworkPoolConfig{}
@@ -169,9 +246,9 @@ var _ = Describe("Drain Controller", func() {
 		})
 
 		It("should drain all nodes in parallel with a custom pool using nil in max unavailable", func(ctx context.Context) {
-			node1, nodeState1 := createNode("node1")
-			node2, nodeState2 := createNode("node2")
-			node3, nodeState3 := createNode("node3")
+			node1, nodeState1 := createNode(ctx, "node1")
+			node2, nodeState2 := createNode(ctx, "node2")
+			node3, nodeState3 := createNode(ctx, "node3")
 
 			poolConfig := &sriovnetworkv1.SriovNetworkPoolConfig{}
 			poolConfig.SetNamespace(testNamespace)
@@ -188,7 +265,6 @@ var _ = Describe("Drain Controller", func() {
 			simulateDaemonSetAnnotation(node2, constants.DrainRequired)
 			simulateDaemonSetAnnotation(node3, constants.DrainRequired)
 
-			// Only the first node drains
 			expectNodeStateAnnotation(nodeState1, constants.DrainComplete)
 			expectNodeStateAnnotation(nodeState2, constants.DrainComplete)
 			expectNodeStateAnnotation(nodeState3, constants.DrainComplete)
@@ -261,7 +337,7 @@ func simulateDaemonSetAnnotation(node *corev1.Node, drainAnnotationValue string)
 		ToNot(HaveOccurred())
 }
 
-func createNode(nodeName string) (*corev1.Node, *sriovnetworkv1.SriovNetworkNodeState) {
+func createNode(ctx context.Context, nodeName string) (*corev1.Node, *sriovnetworkv1.SriovNetworkNodeState) {
 	node := corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nodeName,
