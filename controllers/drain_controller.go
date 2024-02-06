@@ -473,7 +473,7 @@ func (dr *DrainReconcile) findNodePoolConfig(ctx context.Context, node *corev1.N
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (dr *DrainReconcile) SetupWithManager(mgr ctrl.Manager) error {
+func (dr *DrainReconcile) makeControllerBuilder(mgr ctrl.Manager) *ctrl.Builder {
 	createUpdateEnqueue := handler.Funcs{
 		CreateFunc: func(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 			q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
@@ -496,6 +496,9 @@ func (dr *DrainReconcile) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 50}).
 		For(&corev1.Node{}, nodePredicates).
-		Watches(&sriovnetworkv1.SriovNetworkNodeState{}, createUpdateEnqueue, nodeStatePredicates).
-		Complete(dr)
+		Watches(&sriovnetworkv1.SriovNetworkNodeState{}, createUpdateEnqueue, nodeStatePredicates)
+}
+
+func (dr *DrainReconcile) SetupWithManager(mgr ctrl.Manager) error {
+	return dr.makeControllerBuilder(mgr).Complete(dr)
 }

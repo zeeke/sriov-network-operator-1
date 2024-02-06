@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"sync"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -14,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
@@ -271,7 +273,84 @@ var _ = Describe("Drain Controller", Ordered, func() {
 			expectNodeIsNotSchedulable(node1)
 			expectNodeIsNotSchedulable(node2)
 			expectNodeIsNotSchedulable(node3)
+
+			ExpectWithOffset(0,
+				utils.AnnotateObject(node1, constants.NodeDrainAnnotation+"-fake", "fake", k8sClient)).
+				ToNot(HaveOccurred())
+			time.Sleep(5 * time.Second)
+
+			ExpectWithOffset(0,
+				utils.AnnotateObject(node1, constants.NodeDrainAnnotation+"-fake", "fake", k8sClient)).
+				ToNot(HaveOccurred())
+			time.Sleep(5 * time.Second)
 		})
+	})
+})
+
+var _ = Describe("DrainController Predicates", Ordered, func() {
+
+	var cancel context.CancelFunc
+	var ctx context.Context
+	var stubController *StubDrainReconcile
+
+	BeforeAll(func() {
+		By("Create default SriovNetworkPoolConfig k8s objs")
+
+		By("Setup controller manager")
+		k8sManager, err := setupK8sManagerForTest()
+		Expect(err).ToNot(HaveOccurred())
+
+		stubController = &StubDrainReconcile{}
+		Expect(err).ToNot(HaveOccurred())
+		err = stubController.SetupWithManager(k8sManager)
+		Expect(err).ToNot(HaveOccurred())
+
+		ctx, cancel = context.WithCancel(context.Background())
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer GinkgoRecover()
+			By("Start controller manager")
+			err := k8sManager.Start(ctx)
+			Expect(err).ToNot(HaveOccurred())
+		}()
+
+		DeferCleanup(func() {
+			By("Shutdown controller manager")
+			cancel()
+			wg.Wait()
+		})
+	})
+
+	BeforeEach(func() {
+		Expect(k8sClient.DeleteAllOf(context.Background(), &corev1.Node{})).ToNot(HaveOccurred())
+		Expect(k8sClient.DeleteAllOf(context.Background(), &sriovnetworkv1.SriovNetworkNodeState{}, client.InNamespace(vars.Namespace))).ToNot(HaveOccurred())
+	})
+
+	It("should not trigger reconcile loop for changes other than drain annotations", func() {
+
+		node1, nodeState1 := createNode(ctx, "node1")
+
+		// Node creation event should trigger a Reconcile
+		Eventually(stubController.reconcileRequests, "200ms").Should(Receive())
+
+		// SriovNetworNodeState creation event should trigger a Reconcile
+		Eventually(stubController.reconcileRequests, "200ms").Should(Receive())
+
+		// Change a random annotation should not trigger
+		Expect(
+			utils.AnnotateObject(node1, "some-annotation", "fake-value", k8sClient)).
+			ToNot(HaveOccurred())
+
+		Consistently(stubController.reconcileRequests, "200ms").ShouldNot(Receive())
+
+		Expect(
+			utils.AnnotateObject(nodeState1, "some-annotation", "fake-value", k8sClient)).
+			ToNot(HaveOccurred())
+
+		Consistently(stubController.reconcileRequests, "200ms").ShouldNot(Receive())
 	})
 })
 
@@ -365,4 +444,19 @@ func createNode(ctx context.Context, nodeName string) (*corev1.Node, *sriovnetwo
 	Expect(k8sClient.Create(ctx, &nodeState)).ToNot(HaveOccurred())
 
 	return &node, &nodeState
+}
+
+type StubDrainReconcile struct {
+	DrainReconcile
+	reconcileRequests chan (ctrl.Request)
+}
+
+func (sdr *StubDrainReconcile) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	sdr.reconcileRequests <- req
+	return ctrl.Result{}, nil
+}
+
+func (sdr *StubDrainReconcile) SetupWithManager(mgr ctrl.Manager) error {
+	sdr.reconcileRequests = make(chan ctrl.Request)
+	return sdr.makeControllerBuilder(mgr).Complete(sdr)
 }
