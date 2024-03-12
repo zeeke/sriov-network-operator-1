@@ -27,12 +27,14 @@ operator:
   resourcePrefix: "openshift.io"
   cniBinPath: "/opt/cni/bin"
   clusterType: "kubernetes"
+  metricsExporterPort: "9110"
   admissionControllers:
     enabled: false
     certificates:
       secretNames:
         operator: "operator-webhook-cert"
         injector: "network-resources-injector-cert"
+        metricsExporter: "metrics-exporter-cert"
       certManager:
         # When enabled, makes use of certificates managed by cert-manager.
         enabled: false
@@ -98,5 +100,7 @@ images:
   sriovDevicePlugin: ghcr.io/k8snetworkplumbingwg/sriov-network-device-plugin
   resourcesInjector: ghcr.io/k8snetworkplumbingwg/network-resources-injector
   webhook: ghcr.io/k8snetworkplumbingwg/sriov-network-operator-webhook
+  metricsExporter: ghcr.io/k8snetworkplumbingwg/sriov-network-metrics-exporter
+  kubeRbacProxy: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
 
 imagePullSecrets: []

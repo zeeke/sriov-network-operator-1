@@ -72,6 +72,7 @@ We have introduced the following Chart parameters.
 | `operator.resourcePrefix` | string | `openshift.io` | Device plugin resource prefix |
 | `operator.cniBinPath` | string | `/opt/cni/bin` | Path for CNI binary |
 | `operator.clustertype` | string | `kubernetes` | Cluster environment type |
+| `operator.metricsExporterPort` | string | `9110` | Port where the Network Metrics Exporter listen |
 
 #### Admission Controllers parameters
 
@@ -127,3 +128,5 @@ This section contains general parameters that apply to both the operator and dae
 | `images.sriovDevicePlugin` | SR-IOV device plugin image |
 | `images.resourcesInjector` | Resources Injector image |
 | `images.webhook` | Operator Webhook image |
+| `images.metricsExporter` | Network Metrics Exporter image |
+| `images.kubeRbacProxy` | Kube RBAC Proxy image |
