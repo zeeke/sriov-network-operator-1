@@ -774,6 +774,81 @@ func TestValidatePoliciesWithSameExcludeTopologyForTheSameResource(t *testing.T)
 	g.Expect(err).NotTo(HaveOccurred())
 }
 
+func TestValidatePoliciesWithDifferentNumVfForTheSameResourceAndTheSameRootDevice(t *testing.T) {
+	current := &SriovNetworkNodePolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "currentPolicy"},
+		Spec: SriovNetworkNodePolicySpec{
+			ResourceName: "resourceX",
+			NumVfs:       10,
+			NicSelector:  SriovNetworkNicSelector{RootDevices: []string{"0000:86:00.1"}},
+		},
+	}
+
+	previous := &SriovNetworkNodePolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "previousPolicy"},
+		Spec: SriovNetworkNodePolicySpec{
+			ResourceName: "resourceX",
+			NumVfs:       5,
+			NicSelector:  SriovNetworkNicSelector{RootDevices: []string{"0000:86:00.1"}},
+		},
+	}
+
+	err := validatePolicyForNodePolicy(current, previous)
+
+	g := NewGomegaWithT(t)
+	g.Expect(err).To(MatchError("VF index range in 0000:86:00.1 is overlapped with existing policy previousPolicy"))
+}
+
+func TestValidatePoliciesWithRootDeviceRange(t *testing.T) {
+	current := &SriovNetworkNodePolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "currentPolicy"},
+		Spec: SriovNetworkNodePolicySpec{
+			ResourceName: "resourceY",
+			NumVfs:       10,
+			NicSelector:  SriovNetworkNicSelector{RootDevices: []string{"0000:86:00.1#0-1"}},
+		},
+	}
+
+	previous := &SriovNetworkNodePolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "previousPolicy"},
+		Spec: SriovNetworkNodePolicySpec{
+			ResourceName: "resourceX",
+			NumVfs:       10,
+			NicSelector:  SriovNetworkNicSelector{RootDevices: []string{"0000:86:00.1#2-4"}},
+		},
+	}
+
+	err := validatePolicyForNodePolicy(current, previous)
+
+	g := NewGomegaWithT(t)
+	g.Expect(err).ToNot(HaveOccurred())
+}
+
+func TestValidatePoliciesWithRootDeviceRangeOverlap(t *testing.T) {
+	current := &SriovNetworkNodePolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "currentPolicy"},
+		Spec: SriovNetworkNodePolicySpec{
+			ResourceName: "resourceY",
+			NumVfs:       10,
+			NicSelector:  SriovNetworkNicSelector{RootDevices: []string{"0000:86:00.1#0-2"}},
+		},
+	}
+
+	previous := &SriovNetworkNodePolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "previousPolicy"},
+		Spec: SriovNetworkNodePolicySpec{
+			ResourceName: "resourceX",
+			NumVfs:       10,
+			NicSelector:  SriovNetworkNicSelector{RootDevices: []string{"0000:86:00.1#1-3"}},
+		},
+	}
+
+	err := validatePolicyForNodePolicy(current, previous)
+
+	g := NewGomegaWithT(t)
+	g.Expect(err).To(MatchError("VF index range in 0000:86:00.1#0-2 is overlapped with existing policy previousPolicy"))
+}
+
 func TestStaticValidateSriovNetworkNodePolicyWithValidVendorDevice(t *testing.T) {
 	policy := &SriovNetworkNodePolicy{
 		Spec: SriovNetworkNodePolicySpec{
