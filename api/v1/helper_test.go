@@ -694,6 +694,82 @@ func TestSriovNetworkNodePolicyApply(t *testing.T) {
 			expectedInterfaces: nil,
 			expectedErr:        true,
 		},
+		{
+			tname:        "VF range based on PF name",
+			currentState: newNodeState(),
+			policy: &v1.SriovNetworkNodePolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "p1",
+				},
+				Spec: v1.SriovNetworkNodePolicySpec{
+					DeviceType: consts.DeviceTypeNetDevice,
+					NicSelector: v1.SriovNetworkNicSelector{
+						PfNames:     []string{"ens803f1#0-1"},
+						RootDevices: []string{},
+					},
+					NodeSelector: map[string]string{
+						"feature.node.kubernetes.io/network-sriov.capable": "true",
+					},
+					NumVfs:       4,
+					Priority:     99,
+					ResourceName: "p1res",
+				},
+			},
+			equalP:             false,
+			expectedInterfaces: []v1.Interface{
+				{
+					Name:       "ens803f1",
+					NumVfs:     4,
+					PciAddress: "0000:86:00.1",
+					VfGroups: []v1.VfGroup{
+						{
+							DeviceType:   consts.DeviceTypeNetDevice,
+							ResourceName: "p1res",
+							VfRange:      "0-1",
+							PolicyName:   "p1",
+						},
+					},
+				},
+			},
+		},
+		{
+			tname:        "VF range based on root device",
+			currentState: newNodeState(),
+			policy: &v1.SriovNetworkNodePolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "p1",
+				},
+				Spec: v1.SriovNetworkNodePolicySpec{
+					DeviceType: consts.DeviceTypeNetDevice,
+					NicSelector: v1.SriovNetworkNicSelector{
+						PfNames:     []string{},
+						RootDevices: []string{"0000:86:00.1#0-1"},
+					},
+					NodeSelector: map[string]string{
+						"feature.node.kubernetes.io/network-sriov.capable": "true",
+					},
+					NumVfs:       4,
+					Priority:     99,
+					ResourceName: "p1res",
+				},
+			},
+			equalP:             false,
+			expectedInterfaces: []v1.Interface{
+				{
+					Name:       "ens803f1",
+					NumVfs:     4,
+					PciAddress: "0000:86:00.1",
+					VfGroups: []v1.VfGroup{
+						{
+							DeviceType:   consts.DeviceTypeNetDevice,
+							ResourceName: "p1res",
+							VfRange:      "0-1",
+							PolicyName:   "p1",
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testtable {
 		t.Run(tc.tname, func(t *testing.T) {
