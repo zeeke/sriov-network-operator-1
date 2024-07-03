@@ -114,6 +114,7 @@ metadata:
     features.operators.openshift.io/token-auth-azure: "false"
     features.operators.openshift.io/token-auth-gcp: "false"
     olm.skipRange: '>=4.3.0-0 <4.16.0'
+    operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/initialization-resource: |-
       {
         "apiVersion": "sriovnetwork.openshift.io/v1",
@@ -342,6 +343,14 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - apiextensions.k8s.io
+          resources:
+          - customresourcedefinitions
+          verbs:
+          - get
+          - list
+          - watch
         serviceAccountName: sriov-network-operator
       deployments:
       - label:
@@ -392,6 +401,18 @@ spec:
                   value: operator-webhook-service
                 - name: ADMISSION_CONTROLLERS_CERTIFICATES_INJECTOR_SECRET_NAME
                   value: network-resources-injector-secret
+                - name: METRICS_EXPORTER_IMAGE
+                  value: quay.io/openshift/origin-sriov-network-metrics-exporter:4.17
+                - name: METRICS_EXPORTER_KUBE_RBAC_PROXY_IMAGE
+                  value: quay.io/openshift/origin-kube-rbac-proxy:4.17
+                - name: METRICS_EXPORTER_SECRET_NAME
+                  value: metrics-exporter-cert
+                - name: METRICS_EXPORTER_PROMETHEUS_OPERATOR_NAMESPACE
+                  value: openshift-monitoring
+                - name: METRICS_EXPORTER_PROMETHEUS_OPERATOR_SERVICE_ACCOUNT
+                  value: prometheus-k8s
+                - name: METRICS_EXPORTER_PORT
+                  value: "9110"
                 - name: NAMESPACE
                   valueFrom:
                     fieldRef:
@@ -539,6 +560,7 @@ spec:
           - monitoring.coreos.com
           resources:
           - servicemonitors
+          - prometheusrule
           verbs:
           - get
           - create
