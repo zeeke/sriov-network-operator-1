@@ -79,6 +79,7 @@ var _ = Describe("SriovOperatorConfig controller", Ordered, func() {
 
 		err = (&SriovOperatorConfigReconciler{
 			Client:         k8sManager.GetClient(),
+			GlobalClient:   k8sManager.GetClient(),
 			Scheme:         k8sManager.GetScheme(),
 			PlatformHelper: platformHelper,
 			FeatureGate:    featuregate.New(),

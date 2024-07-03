@@ -220,6 +220,7 @@ func main() {
 	}
 	if err = (&controllers.SriovOperatorConfigReconciler{
 		Client:         mgr.GetClient(),
+		GlobalClient:   mgrGlobal.GetClient(),
 		Scheme:         mgr.GetScheme(),
 		PlatformHelper: platformsHelper,
 		FeatureGate:    featureGate,

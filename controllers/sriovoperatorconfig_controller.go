@@ -56,6 +56,7 @@ type SriovOperatorConfigReconciler struct {
 	Scheme         *runtime.Scheme
 	PlatformHelper platforms.Interface
 	FeatureGate    featuregate.FeatureGate
+	GlobalClient   client.Client
 }
 
 //+kubebuilder:rbac:groups=sriovnetwork.openshift.io,resources=sriovoperatorconfigs,verbs=get;list;watch;create;update;patch;delete
