@@ -54,8 +54,8 @@ roleRef:
   name: prometheus-k8s
 subjects:
 - kind: ServiceAccount
-  name: prometheus-k8s
-  namespace: openshift-monitoring
+  name: {{.PrometheusOperatorServiceAccount}}
+  namespace: {{.PrometheusOperatorNamespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
