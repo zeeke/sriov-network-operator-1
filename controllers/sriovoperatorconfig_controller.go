@@ -238,9 +238,10 @@ func (r *SriovOperatorConfigReconciler) syncMetricsExporter(ctx context.Context,
 	data.Data["MetricsExporterPort"] = os.Getenv("METRICS_EXPORTER_PORT")
 	data.Data["MetricsExporterKubeRbacProxyImage"] = os.Getenv("METRICS_EXPORTER_KUBE_RBAC_PROXY_IMAGE")
 	data.Data["IsOpenshift"] = r.PlatformHelper.IsOpenshiftCluster()
-	data.Data["IsPrometheusOperatorInstalled"] = isPrometheusOperatorInstalled(ctx, r.GlobalClient)
+	prometheusOperatorNamespace := os.Getenv("METRICS_EXPORTER_PROMETHEUS_OPERATOR_NAMESPACE")
+	data.Data["IsPrometheusOperatorInstalled"] = prometheusOperatorNamespace != ""
 	data.Data["PrometheusOperatorServiceAccount"] = os.Getenv("METRICS_EXPORTER_PROMETHEUS_OPERATOR_SERVICE_ACCOUNT")
-	data.Data["PrometheusOperatorNamespace"] = os.Getenv("METRICS_EXPORTER_PROMETHEUS_OPERATOR_NAMESPACE")
+	data.Data["PrometheusOperatorNamespace"] = prometheusOperatorNamespace
 	data.Data["NodeSelectorField"] = GetDefaultNodeSelector()
 	if dc.Spec.ConfigDaemonNodeSelector != nil {
 		data.Data["NodeSelectorField"] = dc.Spec.ConfigDaemonNodeSelector
