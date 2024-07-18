@@ -14,7 +14,7 @@ if [ $? -ne 0 ]; then
 	cd -
 fi
 
-GOPATH="${GOPATH:-~/go}"
+GOPATH="${GOPATH:-$HOME/go}"
 JUNIT_OUTPUT="${JUNIT_OUTPUT:-/tmp/artifacts}"
 export PATH=$PATH:$GOPATH/bin
 
