@@ -589,6 +589,7 @@ func (s *sriov) configSriovDevice(iface *sriovnetworkv1.Interface, skipVFConfigu
 		return err
 	}
 	if !s.netlinkLib.IsLinkAdminStateUp(pfLink) {
+		log.Log.Info("configSriovDevice(): set link up", "device", iface.PciAddress)
 		err = s.netlinkLib.LinkSetUp(pfLink)
 		if err != nil {
 			return err

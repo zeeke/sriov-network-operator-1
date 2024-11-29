@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/vishvananda/netlink"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func New() NetlinkLib {
@@ -185,6 +186,7 @@ func (w *libWrapper) RdmaLinkByName(name string) (*netlink.RdmaLink, error) {
 
 // IsLinkAdminStateUp checks if the admin state of a link is up
 func (w *libWrapper) IsLinkAdminStateUp(link Link) bool {
+	log.Log.Info("IsLinkAdminStateUp()", "link.Attrs().Flags", link.Attrs().Flags, "net.FlagUp", net.FlagUp, "pfLink.Attrs().OperState", link.Attrs().OperState, "netlink.OperUp", netlink.OperUp)
 	return link.Attrs().Flags&net.FlagUp == 1
 }
 
