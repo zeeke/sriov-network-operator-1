@@ -266,6 +266,21 @@ func (n *EnabledNodes) FindOneMellanoxSriovDevice(node string) (*sriovv1.Interfa
 	return nil, fmt.Errorf("unable to find a mellanox sriov devices in node %s", node)
 }
 
+func (n *EnabledNodes) FindOneIntelSriovDevice(node string) (*sriovv1.InterfaceExt, error) {
+	s, ok := n.States[node]
+	if !ok {
+		return nil, fmt.Errorf("node %s not found", node)
+	}
+
+	for _, itf := range s.Status.Interfaces {
+		if itf.Vendor == intelVendorID && sriovv1.IsSupportedModel(itf.Vendor, itf.DeviceID) {
+			return &itf, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unable to find an Intel sriov devices in node %s", node)
+}
+
 // SriovStable tells if all the node states are in sync (and the cluster is ready for another round of tests)
 func SriovStable(operatorNamespace string, clients *testclient.ClientSet) (bool, error) {
 	nodeStates, err := clients.SriovNetworkNodeStates(operatorNamespace).List(context.Background(), metav1.ListOptions{})

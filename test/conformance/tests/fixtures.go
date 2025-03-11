@@ -46,4 +46,5 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	err := clean.All()
 	Expect(err).NotTo(HaveOccurred())
+	WaitForSRIOVStable()
 })
