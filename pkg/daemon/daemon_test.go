@@ -23,6 +23,7 @@ import (
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/daemon"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/featuregate"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/helper"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/helper/fake"
 	mock_helper "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/helper/mock"
 	hostTypes "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host/types"
 	snolog "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/log"
@@ -220,6 +221,80 @@ var _ = Describe("Daemon Controller", Ordered, func() {
 					}},
 			}
 			afterConfig = true
+			err = k8sClient.Update(ctx, nodeState)
+			Expect(err).ToNot(HaveOccurred())
+			By("waiting to require drain")
+			EventuallyWithOffset(1, func(g Gomega) {
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)).
+					ToNot(HaveOccurred())
+				g.Expect(dc.GetLastAppliedGeneration()).To(Equal(int64(2)))
+			}, waitTime, retryTime).Should(Succeed())
+
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)
+			Expect(err).ToNot(HaveOccurred())
+			nodeState.Spec.Interfaces = []sriovnetworkv1.Interface{}
+			err = k8sClient.Update(ctx, nodeState)
+			Expect(err).ToNot(HaveOccurred())
+
+			EventuallyWithOffset(1, func(g Gomega) {
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)).
+					ToNot(HaveOccurred())
+
+				g.Expect(nodeState.Annotations[constants.NodeStateDrainAnnotation]).To(Equal(constants.DrainRequired))
+			}, waitTime, retryTime).Should(Succeed())
+
+			patchAnnotation(nodeState, constants.NodeStateDrainAnnotationCurrent, constants.DrainComplete)
+			// Validate status
+			EventuallyWithOffset(1, func(g Gomega) {
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)).
+					ToNot(HaveOccurred())
+
+				g.Expect(nodeState.Annotations[constants.NodeStateDrainAnnotation]).To(Equal(constants.DrainIdle))
+			}, waitTime, retryTime).Should(Succeed())
+			patchAnnotation(nodeState, constants.NodeStateDrainAnnotationCurrent, constants.DrainIdle)
+
+			// Validate status
+			EventuallyWithOffset(1, func(g Gomega) {
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)).
+					ToNot(HaveOccurred())
+
+				g.Expect(nodeState.Status.SyncStatus).To(Equal(constants.SyncStatusSucceeded))
+			}, waitTime, retryTime).Should(Succeed())
+
+			Expect(nodeState.Status.LastSyncError).To(Equal(""))
+		})
+
+		FIt("Test1", func() {
+			featureGates := featuregate.New()
+			featureGates.Init(map[string]bool{})
+			dc := createDaemon(fake.NewHostHelpers(), platformHelper, featureGates, []string{})
+			startDaemon(dc)
+
+			_, nodeState := createNode("node1")
+			By("waiting for state to be succeeded")
+			EventuallyWithOffset(1, func(g Gomega) {
+				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)).
+					ToNot(HaveOccurred())
+
+				g.Expect(nodeState.Status.SyncStatus).To(Equal(constants.SyncStatusSucceeded))
+			}, waitTime, retryTime).Should(Succeed())
+
+			By("add spec to node state")
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)
+			Expect(err).ToNot(HaveOccurred())
+
+			nodeState.Spec.Interfaces = []sriovnetworkv1.Interface{
+				{Name: "eno1",
+					PciAddress: "0000:16:00.0",
+					LinkType:   "eth",
+					NumVfs:     2,
+					VfGroups: []sriovnetworkv1.VfGroup{
+						{ResourceName: "test",
+							DeviceType: "netdevice",
+							PolicyName: "test-policy",
+							VfRange:    "eno1#0-1"},
+					}},
+			}
 			err = k8sClient.Update(ctx, nodeState)
 			Expect(err).ToNot(HaveOccurred())
 			By("waiting to require drain")
