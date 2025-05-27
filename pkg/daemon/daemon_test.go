@@ -23,8 +23,8 @@ import (
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/daemon"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/featuregate"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/helper"
-	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/helper/fake"
 	mock_helper "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/helper/mock"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host"
 	hostTypes "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host/types"
 	snolog "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/log"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/platforms"
@@ -267,7 +267,7 @@ var _ = Describe("Daemon Controller", Ordered, func() {
 		FIt("Test1", func() {
 			featureGates := featuregate.New()
 			featureGates.Init(map[string]bool{})
-			dc := createDaemon(fake.NewHostHelpers(), platformHelper, featureGates, []string{})
+			dc := createDaemon(host.NewFakeHostHelper(), platformHelper, featureGates, []string{})
 			startDaemon(dc)
 
 			_, nodeState := createNode("node1")

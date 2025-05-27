@@ -2,6 +2,8 @@ package host
 
 import (
 	"net"
+	"regexp"
+	"strings"
 
 	"github.com/jaypipes/ghw/pkg/cpu"
 	"github.com/jaypipes/ghw/pkg/pci"
@@ -23,7 +25,7 @@ type FakeHostHelper struct {
 
 func NewFakeHostHelper() *FakeHostHelper {
 	vars.FilesystemRoot = "/tmp"
-	sysMock := &systemMock{}
+	sysMock := newSystemMock()
 
 	storeManager, err := store.NewManager()
 	if err != nil {
@@ -43,7 +45,33 @@ func NewFakeHostHelper() *FakeHostHelper {
 	}
 }
 
-type systemMock struct{}
+func newSystemMock() *systemMock {
+	ret := &systemMock{}
+
+	ret.pfLinks = []netlink.Link{
+		&netlink.Dummy{
+			LinkAttrs: netlink.LinkAttrs{
+				Name:         "eno1",
+				HardwareAddr: mustParseMAC("aa:aa:aa:00:00:01"),
+			},
+		},
+	}
+
+	return ret
+}
+
+func mustParseMAC(s string) net.HardwareAddr {
+	ret, err := net.ParseMAC(s)
+	if err != nil {
+		panic(err)
+	}
+	return ret
+}
+
+type systemMock struct {
+	pfLinks         []netlink.Link
+	vfLinksByPfName map[string][]netlink.Link
+}
 
 // CPU implements ghw.GHWLib.
 func (s *systemMock) CPU() (*cpu.Info, error) {
@@ -112,7 +140,16 @@ func (s *systemMock) LinkByName(name string) (netlinkPkg.Link, error) {
 
 // LinkList implements netlink.NetlinkLib.
 func (s *systemMock) LinkList() ([]netlinkPkg.Link, error) {
-	panic("unimplemented")
+	ret := []netlinkPkg.Link{}
+	for _, pf := range s.pfLinks {
+		ret = append(ret, pf)
+
+		vfs := s.vfLinksByPfName[pf.Attrs().Name]
+		for _, vf := range vfs {
+			ret = append(ret, vf)
+		}
+	}
+	return ret, nil
 }
 
 // LinkSetMTU implements netlink.NetlinkLib.
@@ -216,6 +253,31 @@ func (s *systemMock) Chroot(string) (func() error, error) {
 }
 
 // RunCommand implements utils.CmdInterface.
-func (s *systemMock) RunCommand(string, ...string) (string, string, error) {
-	panic("unimplemented")
+func (s *systemMock) RunCommand(cmd string, args ...string) (string, string, error) {
+	fullcmd := cmd + " " + strings.Join(args, " ")
+
+	for cmdRegexp, stubCmd := range stubCommands {
+		reg, err := regexp.Compile(cmdRegexp)
+		if err != nil {
+			panic(err)
+		}
+
+		if reg.MatchString(fullcmd) {
+			return stubCmd(fullcmd)
+		}
+	}
+
+	panic(fullcmd)
+}
+
+var stubCommands map[string]commandCallback = map[string]commandCallback{
+	"/bin/sh -c chroot /tmp/host lsmod | grep --quiet '.*'": okNoOutput,
+	"/bin/sh -c chroot /tmp/host modprobe .*":               okNoOutput,
+	"/bin/bash /tmp/bindata/scripts/udev-find-sriov-pf.sh":  okNoOutput,
+}
+
+type commandCallback func(fullcmd string) (string, string, error)
+
+func okNoOutput(_ string) (string, string, error) {
+	return "", "", nil
 }
