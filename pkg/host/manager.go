@@ -56,6 +56,17 @@ func NewHostManager(utilsInterface utils.CmdInterface) (HostManagerInterface, er
 	ethtoolLib := ethtool.New()
 	sriovnetLib := sriovnet.New()
 	ghwLib := ghw.New()
+
+	return NewHostManager2(utilsInterface, dpUtils, netlinkLib, ethtoolLib, sriovnetLib, ghwLib)
+}
+
+func NewHostManager2(
+	utilsInterface utils.CmdInterface,
+	dpUtils dputils.DPUtilsLib,
+	netlinkLib netlink.NetlinkLib,
+	ethtoolLib ethtool.EthtoolLib,
+	sriovnetLib sriovnet.SriovnetLib,
+	ghwLib ghw.GHWLib) (HostManagerInterface, error) {
 	k := kernel.New(utilsInterface)
 	n := network.New(utilsInterface, dpUtils, netlinkLib, ethtoolLib)
 	sv := service.New(utilsInterface)

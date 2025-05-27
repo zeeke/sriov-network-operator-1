@@ -9,6 +9,8 @@ import (
 	mlx "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vendors/mellanox"
 )
 
+//var x HostHelpersInterface = host.NewFakeHostHelper()
+
 //go:generate ../../bin/mockgen -destination mock/mock_helper.go -source host.go
 type HostHelpersInterface interface {
 	utils.CmdInterface
