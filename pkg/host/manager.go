@@ -60,6 +60,7 @@ func NewHostManager(utilsInterface utils.CmdInterface) (HostManagerInterface, er
 	return NewHostManager2(utilsInterface, dpUtils, netlinkLib, ethtoolLib, sriovnetLib, ghwLib)
 }
 
+// TODO - better naming
 func NewHostManager2(
 	utilsInterface utils.CmdInterface,
 	dpUtils dputils.DPUtilsLib,

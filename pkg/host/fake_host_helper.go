@@ -2,6 +2,8 @@ package host
 
 import (
 	"net"
+	"os"
+	"path"
 	"regexp"
 	"strings"
 
@@ -24,7 +26,26 @@ type FakeHostHelper struct {
 }
 
 func NewFakeHostHelper() *FakeHostHelper {
-	vars.FilesystemRoot = "/tmp"
+	vars.FilesystemRoot = "/tmp/sriov-test"
+	os.RemoveAll(vars.FilesystemRoot)
+	err := os.MkdirAll(vars.FilesystemRoot, 0755)
+	if err != nil {
+		panic(err)
+	}
+
+	// TODO - find a better way to refer to bindata
+	err = os.CopyFS(vars.FilesystemRoot+"/bindata", os.DirFS("./bindata"))
+	if err != nil {
+		panic(err)
+	}
+	err = os.MkdirAll(path.Join(
+		vars.FilesystemRoot,
+		"/host/etc/udev",
+	), 0755)
+	if err != nil {
+		panic(err)
+	}
+
 	sysMock := newSystemMock()
 
 	storeManager, err := store.NewManager()
@@ -271,9 +292,9 @@ func (s *systemMock) RunCommand(cmd string, args ...string) (string, string, err
 }
 
 var stubCommands map[string]commandCallback = map[string]commandCallback{
-	"/bin/sh -c chroot /tmp/host lsmod | grep --quiet '.*'": okNoOutput,
-	"/bin/sh -c chroot /tmp/host modprobe .*":               okNoOutput,
-	"/bin/bash /tmp/bindata/scripts/udev-find-sriov-pf.sh":  okNoOutput,
+	"/bin/sh -c chroot /tmp/sriov-test/host lsmod | grep --quiet '.*'": okNoOutput,
+	"/bin/sh -c chroot /tmp/sriov-test/host modprobe .*":               okNoOutput,
+	"/bin/bash /tmp/sriov-test/bindata/scripts/udev-find-sriov-pf.sh":  okNoOutput,
 }
 
 type commandCallback func(fullcmd string) (string, string, error)
