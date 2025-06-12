@@ -9,11 +9,13 @@ import (
 
 	"github.com/jaypipes/ghw/pkg/cpu"
 	"github.com/jaypipes/ghw/pkg/pci"
+	"github.com/jaypipes/pcidb"
 	netlinkPkg "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host/internal/lib/netlink"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host/store"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vars"
 	mlxutils "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vendors/mellanox"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/test/util/fakefilesystem"
 
 	"github.com/vishvananda/netlink"
 )
@@ -26,12 +28,27 @@ type FakeHostHelper struct {
 }
 
 func NewFakeHostHelper() *FakeHostHelper {
-	vars.FilesystemRoot = "/tmp/sriov-test"
-	os.RemoveAll(vars.FilesystemRoot)
-	err := os.MkdirAll(vars.FilesystemRoot, 0755)
+	//vars.FilesystemRoot = "/tmp/sriov-test"
+	//os.RemoveAll(vars.FilesystemRoot)
+	//err := os.MkdirAll(vars.FilesystemRoot, 0755)
+	//if err != nil {
+	//	panic(err)
+	//}
+
+	var err error
+
+	f := &fakefilesystem.FS{
+		Dirs:  []string{"/host/proc"},
+		Files: map[string][]byte{"/host/proc/cmdline": hostProcCmdLine},
+	}
+
+	// TODO - clean filesystem
+	vars.FilesystemRoot, _, err = f.Use()
 	if err != nil {
 		panic(err)
 	}
+
+	vars.Destdir = vars.FilesystemRoot
 
 	// TODO - find a better way to refer to bindata
 	err = os.CopyFS(vars.FilesystemRoot+"/bindata", os.DirFS("./bindata"))
@@ -69,13 +86,8 @@ func NewFakeHostHelper() *FakeHostHelper {
 func newSystemMock() *systemMock {
 	ret := &systemMock{}
 
-	ret.pfLinks = []netlink.Link{
-		&netlink.Dummy{
-			LinkAttrs: netlink.LinkAttrs{
-				Name:         "eno1",
-				HardwareAddr: mustParseMAC("aa:aa:aa:00:00:01"),
-			},
-		},
+	ret.mockedDevices = []*mockedDevice{
+		newIntelE810(),
 	}
 
 	return ret
@@ -90,8 +102,9 @@ func mustParseMAC(s string) net.HardwareAddr {
 }
 
 type systemMock struct {
-	pfLinks         []netlink.Link
-	vfLinksByPfName map[string][]netlink.Link
+	mockedDevices []*mockedDevice
+	//pfLinks         []netlink.Link
+	//vfLinksByPfName map[string][]netlink.Link
 }
 
 // CPU implements ghw.GHWLib.
@@ -101,7 +114,11 @@ func (s *systemMock) CPU() (*cpu.Info, error) {
 
 // PCI implements ghw.GHWLib.
 func (s *systemMock) PCI() (*pci.Info, error) {
-	panic("unimplemented")
+	ret := &pci.Info{}
+	for _, device := range s.mockedDevices {
+		ret.Devices = append(ret.Devices, device.pciDevices()...)
+	}
+	return ret, nil
 }
 
 // GetVfRepresentor implements sriovnet.SriovnetLib.
@@ -162,12 +179,11 @@ func (s *systemMock) LinkByName(name string) (netlinkPkg.Link, error) {
 // LinkList implements netlink.NetlinkLib.
 func (s *systemMock) LinkList() ([]netlinkPkg.Link, error) {
 	ret := []netlinkPkg.Link{}
-	for _, pf := range s.pfLinks {
-		ret = append(ret, pf)
+	for _, pf := range s.mockedDevices {
+		ret = append(ret, pf.pfLink)
 
-		vfs := s.vfLinksByPfName[pf.Attrs().Name]
-		for _, vf := range vfs {
-			ret = append(ret, vf)
+		for _, vfLink := range pf.vfLinks {
+			ret = append(ret, vfLink)
 		}
 	}
 	return ret, nil
@@ -205,7 +221,7 @@ func (s *systemMock) RdmaLinkByName(name string) (*netlink.RdmaLink, error) {
 
 // RdmaSystemGetNetnsMode implements netlink.NetlinkLib.
 func (s *systemMock) RdmaSystemGetNetnsMode() (string, error) {
-	panic("unimplemented")
+	return "shared", nil // TODO
 }
 
 // VDPADelDev implements netlink.NetlinkLib.
@@ -260,7 +276,13 @@ func (s *systemMock) IsSriovPF(pciAddr string) bool {
 
 // IsSriovVF implements dputils.DPUtilsLib.
 func (s *systemMock) IsSriovVF(pciAddr string) bool {
-	panic("unimplemented")
+	for _, mockDevice := range s.mockedDevices {
+		if mockDevice.isSriovVF(pciAddr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // SriovConfigured implements dputils.DPUtilsLib.
@@ -292,9 +314,10 @@ func (s *systemMock) RunCommand(cmd string, args ...string) (string, string, err
 }
 
 var stubCommands map[string]commandCallback = map[string]commandCallback{
-	"/bin/sh -c chroot /tmp/sriov-test/host lsmod | grep --quiet '.*'": okNoOutput,
-	"/bin/sh -c chroot /tmp/sriov-test/host modprobe .*":               okNoOutput,
-	"/bin/bash /tmp/sriov-test/bindata/scripts/udev-find-sriov-pf.sh":  okNoOutput,
+	"/bin/sh -c chroot /tmp/sriov-operator[0-9]+/host lsmod | grep --quiet '.*'": okNoOutput,
+	"/bin/sh -c chroot /tmp/sriov-operator[0-9]+/host lsmod | grep \"^.*\"":      okNoOutput,
+	"/bin/sh -c chroot /tmp/sriov-operator[0-9]+/host modprobe .*":               okNoOutput,
+	"/bin/bash /tmp/sriov-operator[0-9]+/bindata/scripts/udev-find-sriov-pf.sh":  okNoOutput,
 }
 
 type commandCallback func(fullcmd string) (string, string, error)
@@ -302,3 +325,133 @@ type commandCallback func(fullcmd string) (string, string, error)
 func okNoOutput(_ string) (string, string, error) {
 	return "", "", nil
 }
+
+type mockedDevice struct {
+	pfLink    netlink.Link
+	vfLinks   []netlink.Link
+	pfDevice  *pci.Device
+	vfDevices []*pci.Device
+}
+
+func newIntelE810() *mockedDevice {
+	return &mockedDevice{
+		pfLink: &netlink.Dummy{
+			LinkAttrs: netlink.LinkAttrs{
+				Name:         "eno1",
+				HardwareAddr: mustParseMAC("aa:aa:aa:00:00:01"),
+			},
+		},
+		vfLinks: []netlink.Link{},
+		pfDevice: &pci.Device{
+			Driver:  "ice",
+			Address: "0000:31:00.0",
+			Vendor: &pcidb.Vendor{
+				ID:   "8086",
+				Name: "Intel",
+			},
+			Product: &pcidb.Product{
+				ID:   "159b",
+				Name: "Intel Corporation Ethernet Controller E810-XXV for SFP",
+			},
+			Revision: "0x00",
+			Subsystem: &pcidb.Product{
+				ID:   "8086:0001",
+				Name: "unknown",
+			},
+			Class: &pcidb.Class{
+				ID:   "02",
+				Name: "Network controller",
+			},
+			Subclass: &pcidb.Subclass{
+				ID:   "00",
+				Name: "Ethernet controller",
+			},
+			ProgrammingInterface: &pcidb.ProgrammingInterface{
+				ID:   "00",
+				Name: "unknonw",
+			},
+		},
+		vfDevices: []*pci.Device{},
+	}
+
+}
+
+func (m *mockedDevice) pciDevices() []*pci.Device {
+	// ret := []*pci.Device{{
+	// 	Driver:  "ice",
+	// 	Address: "0000:31:00.0",
+	// 	Vendor: &pcidb.Vendor{
+	// 		ID:   "8086",
+	// 		Name: "Intel",
+	// 	},
+	// 	Product: &pcidb.Product{
+	// 		ID:   "159b",
+	// 		Name: "Intel Corporation Ethernet Controller E810-XXV for SFP",
+	// 	},
+	// 	Revision: "0x00",
+	// 	Subsystem: &pcidb.Product{
+	// 		ID:   "8086:0001",
+	// 		Name: "unknown",
+	// 	},
+	// 	Class: &pcidb.Class{
+	// 		ID:   "02",
+	// 		Name: "Network controller",
+	// 	},
+	// 	Subclass: &pcidb.Subclass{
+	// 		ID:   "00",
+	// 		Name: "Ethernet controller",
+	// 	},
+	// 	ProgrammingInterface: &pcidb.ProgrammingInterface{
+	// 		ID:   "00",
+	// 		Name: "unknonw",
+	// 	},
+	// }}
+
+	// for i := range m.vfLinks {
+	// 	ret = append(ret, &pci.Device{
+	// 		Driver:  "ice",
+	// 		Address: fmt.Sprintf("0000:31:00.%d", i+1), // TODO - handle double digits
+	// 		Vendor: &pcidb.Vendor{
+	// 			ID:   "8086",
+	// 			Name: "Intel",
+	// 		},
+	// 		Product: &pcidb.Product{
+	// 			ID:   "1889",
+	// 			Name: "Intel Corporation Ethernet Adaptive Virtual Function",
+	// 		},
+	// 		Revision: "0x00",
+	// 		Subsystem: &pcidb.Product{
+	// 			ID:   "8086:0001",
+	// 			Name: "unknown",
+	// 		},
+	// 		Class: &pcidb.Class{
+	// 			ID:   "02",
+	// 			Name: "Network controller",
+	// 		},
+	// 		Subclass: &pcidb.Subclass{
+	// 			ID:   "00",
+	// 			Name: "Ethernet controller",
+	// 		},
+	// 		ProgrammingInterface: &pcidb.ProgrammingInterface{
+	// 			ID:   "00",
+	// 			Name: "unknonw",
+	// 		},
+	// 	})
+	// }
+
+	ret := []*pci.Device{m.pfDevice}
+	ret = append(ret, m.vfDevices...)
+	return ret
+
+}
+
+func (m *mockedDevice) isSriovVF(pciAddress string) bool {
+	for _, vfDevice := range m.vfDevices {
+		if vfDevice.Address == pciAddress {
+			return true
+		}
+	}
+	return false
+}
+
+var hostProcCmdLine []byte = []byte("BOOT_IMAGE=(hd0,gpt3)/boot/ostree/rhcos-3a85e2a0d869da4c0fa4f64c3ab3a1d3826e217cb5852ba645f9667f0547ff17/vmlinuz-5.14.0-570.17.1.el9_6.x86_64 rw ostree=/ostree/boot.0/rhcos/3a85e2a0d869da4c0fa4f64c3ab3a1d3826e217cb5852ba645f9667f0547ff17/0 ignition.platform.id=metal ip=dhcp root=UUID=3df22ef9-b181-4a4a-bc8f-ee4f105cabcf rw rootflags=prjquota boot=UUID=90d44ef1-0af2-4ccb-911e-ee7af86c62da systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all psi=0 intel_iommu=on iommu=pt")

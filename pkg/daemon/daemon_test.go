@@ -48,8 +48,8 @@ var (
 )
 
 const (
-	waitTime  = 30 * time.Minute
-	retryTime = 5 * time.Second
+	waitTime  = 10 * time.Second
+	retryTime = 1 * time.Second
 )
 
 var _ = Describe("Daemon Controller", Ordered, func() {
