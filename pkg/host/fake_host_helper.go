@@ -1,6 +1,7 @@
 package host
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path"
@@ -17,6 +18,7 @@ import (
 	mlxutils "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/vendors/mellanox"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/test/util/fakefilesystem"
 
+	sriovv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	"github.com/vishvananda/netlink"
 )
 
@@ -63,6 +65,12 @@ func NewFakeHostHelper() *FakeHostHelper {
 		panic(err)
 	}
 
+	sriovv1.InitNicIDMapFromList([]string{
+		"8086 158b 154c",
+		"15b3 1015 1016",
+		"8086 159b 1889",
+	})
+
 	sysMock := newSystemMock()
 
 	storeManager, err := store.NewManager()
@@ -105,6 +113,32 @@ type systemMock struct {
 	mockedDevices []*mockedDevice
 	//pfLinks         []netlink.Link
 	//vfLinksByPfName map[string][]netlink.Link
+}
+
+func (s *systemMock) findMockDeviceByPCIAddress(pfPciAddress string) *mockedDevice {
+	for _, device := range s.mockedDevices {
+		if device.pfDevice.Address == pfPciAddress {
+			return device
+		}
+	}
+
+	panic(fmt.Errorf("device %s not found", pfPciAddress))
+}
+
+func (s *systemMock) findPICDeviceByAddress(anyPciAddress string) *pci.Device {
+	for _, mockDevice := range s.mockedDevices {
+		if mockDevice.pfDevice.Address == anyPciAddress {
+			return mockDevice.pfDevice
+		}
+
+		for _, vfDevice := range mockDevice.vfDevices {
+			if vfDevice.Address == anyPciAddress {
+				return vfDevice
+			}
+		}
+	}
+
+	panic(fmt.Errorf("device %s not found", anyPciAddress))
 }
 
 // CPU implements ghw.GHWLib.
@@ -241,12 +275,12 @@ func (s *systemMock) VDPANewDev(name string, mgmtBus string, mgmtName string, pa
 
 // GetDriverName implements dputils.DPUtilsLib.
 func (s *systemMock) GetDriverName(pciAddr string) (string, error) {
-	panic("unimplemented")
+	return s.findPICDeviceByAddress(pciAddr).Driver, nil
 }
 
 // GetNetNames implements dputils.DPUtilsLib.
 func (s *systemMock) GetNetNames(pciAddr string) ([]string, error) {
-	panic("unimplemented")
+	return s.findPICDeviceByAddress(pciAddr)., nil
 }
 
 // GetSriovVFcapacity implements dputils.DPUtilsLib.
@@ -292,7 +326,7 @@ func (s *systemMock) SriovConfigured(addr string) bool {
 
 // Chroot implements utils.CmdInterface.
 func (s *systemMock) Chroot(string) (func() error, error) {
-	panic("unimplemented")
+	return func() error { return nil }, nil
 }
 
 // RunCommand implements utils.CmdInterface.
@@ -318,6 +352,8 @@ var stubCommands map[string]commandCallback = map[string]commandCallback{
 	"/bin/sh -c chroot /tmp/sriov-operator[0-9]+/host lsmod | grep \"^.*\"":      okNoOutput,
 	"/bin/sh -c chroot /tmp/sriov-operator[0-9]+/host modprobe .*":               okNoOutput,
 	"/bin/bash /tmp/sriov-operator[0-9]+/bindata/scripts/udev-find-sriov-pf.sh":  okNoOutput,
+	"/bin/sh bindata/scripts/kargs.sh add .*":                                    okNoOutput,
+	"/bin/sh bindata/scripts/kargs.sh remove .*":                                 okNoOutput,
 }
 
 type commandCallback func(fullcmd string) (string, string, error)
