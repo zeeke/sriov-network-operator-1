@@ -111,50 +111,49 @@ func mustParseMAC(s string) net.HardwareAddr {
 
 type systemMock struct {
 	mockedDevices []*mockedDevice
-	//pfLinks         []netlink.Link
-	//vfLinksByPfName map[string][]netlink.Link
 }
 
-func (s *systemMock) findMockDeviceByPCIAddress(pfPciAddress string) *mockedDevice {
-	for _, device := range s.mockedDevices {
-		if device.pfDevice.Address == pfPciAddress {
-			return device
-		}
-	}
-
-	panic(fmt.Errorf("device %s not found", pfPciAddress))
-}
-
-func (s *systemMock) findPICDeviceByAddress(anyPciAddress string) *pci.Device {
+func (s *systemMock) findDevice(condition func(*mockedFunction) bool) *mockedFunction {
 	for _, mockDevice := range s.mockedDevices {
-		if mockDevice.pfDevice.Address == anyPciAddress {
-			return mockDevice.pfDevice
+		if condition(&mockDevice.PF) {
+			return &mockDevice.PF
 		}
 
-		for _, vfDevice := range mockDevice.vfDevices {
-			if vfDevice.Address == anyPciAddress {
-				return vfDevice
+		for _, vfDevice := range mockDevice.VFs {
+			if condition(&vfDevice) {
+				return &vfDevice
 			}
 		}
 	}
 
-	panic(fmt.Errorf("device %s not found", anyPciAddress))
+	panic(fmt.Errorf("device not found"))
 }
 
-func (s *systemMock) findNetdeviceDeviceByAddress(anyPciAddress string) netlink.Link {
+func (s *systemMock) findPF(condition func(*mockedFunction) bool) *mockedFunction {
 	for _, mockDevice := range s.mockedDevices {
-		if mockDevice.pfDevice.Address == anyPciAddress {
-			return mockDevice.pfLink
-		}
-
-		for i, vfDevice := range mockDevice.vfDevices {
-			if vfDevice.Address == anyPciAddress {
-				return mockDevice.vfLinks[i]
-			}
+		if condition(&mockDevice.PF) {
+			return &mockDevice.PF
 		}
 	}
 
-	panic(fmt.Errorf("device %s not found", anyPciAddress))
+	return nil
+}
+
+func (s *systemMock) findMockedDevice(condition func(*mockedFunction) bool) *mockedDevice {
+	for _, mockDevice := range s.mockedDevices {
+		if condition(&mockDevice.PF) {
+			return mockDevice
+		}
+	}
+
+	return nil
+}
+
+func (s *systemMock) findDeviceByPCIAddress(anyPciAddress string) *mockedFunction {
+	ret := s.findDevice(func(device *mockedFunction) bool {
+		return device.pci.Address == anyPciAddress
+	})
+	return ret
 }
 
 // CPU implements ghw.GHWLib.
@@ -213,27 +212,31 @@ func (s *systemMock) DevlinkSetDeviceParam(bus string, device string, param stri
 
 // IsLinkAdminStateUp implements netlink.NetlinkLib.
 func (s *systemMock) IsLinkAdminStateUp(link netlinkPkg.Link) bool {
-	panic("unimplemented")
+	return link.Attrs().Flags&net.FlagUp == 1 // TODO - this has the same logic as the real implementation
 }
 
 // LinkByIndex implements netlink.NetlinkLib.
 func (s *systemMock) LinkByIndex(index int) (netlinkPkg.Link, error) {
-	panic("unimplemented")
+	return s.findDevice(func(mf *mockedFunction) bool {
+		return mf.link.Attrs().Index == index
+	}).link, nil
 }
 
 // LinkByName implements netlink.NetlinkLib.
 func (s *systemMock) LinkByName(name string) (netlinkPkg.Link, error) {
-	panic("unimplemented")
+	return s.findDevice(func(mf *mockedFunction) bool {
+		return mf.link.Attrs().Name == name
+	}).link, nil
 }
 
 // LinkList implements netlink.NetlinkLib.
 func (s *systemMock) LinkList() ([]netlinkPkg.Link, error) {
 	ret := []netlinkPkg.Link{}
-	for _, pf := range s.mockedDevices {
-		ret = append(ret, pf.pfLink)
+	for _, mockedDevice := range s.mockedDevices {
+		ret = append(ret, mockedDevice.PF.link)
 
-		for _, vfLink := range pf.vfLinks {
-			ret = append(ret, vfLink)
+		for _, vf := range mockedDevice.VFs {
+			ret = append(ret, vf.link)
 		}
 	}
 	return ret, nil
@@ -291,17 +294,19 @@ func (s *systemMock) VDPANewDev(name string, mgmtBus string, mgmtName string, pa
 
 // GetDriverName implements dputils.DPUtilsLib.
 func (s *systemMock) GetDriverName(pciAddr string) (string, error) {
-	return s.findPICDeviceByAddress(pciAddr).Driver, nil
+	ret := s.findDeviceByPCIAddress(pciAddr)
+	return ret.pci.Driver, nil
 }
 
 // GetNetNames implements dputils.DPUtilsLib.
 func (s *systemMock) GetNetNames(pciAddr string) ([]string, error) {
-	return []string{s.findNetdeviceDeviceByAddress(pciAddr).Attrs().Name}, nil
+	ret := s.findDeviceByPCIAddress(pciAddr)
+	return []string{ret.link.Attrs().Name}, nil
 }
 
 // GetSriovVFcapacity implements dputils.DPUtilsLib.
 func (s *systemMock) GetSriovVFcapacity(pf string) int {
-	panic("unimplemented")
+	return 64 // TODO : make this dynamic
 }
 
 // GetVFID implements dputils.DPUtilsLib.
@@ -316,12 +321,16 @@ func (s *systemMock) GetVFList(pf string) (vfList []string, err error) {
 
 // GetVFconfigured implements dputils.DPUtilsLib.
 func (s *systemMock) GetVFconfigured(pf string) int {
-	panic("unimplemented")
+	return len(s.findMockedDevice(func(mf *mockedFunction) bool {
+		return mf.pci.Address == pf
+	}).VFs)
 }
 
 // IsSriovPF implements dputils.DPUtilsLib.
 func (s *systemMock) IsSriovPF(pciAddr string) bool {
-	panic("unimplemented")
+	return s.findPF(func(mf *mockedFunction) bool {
+		return mf.pci.Address == pciAddr
+	}) != nil
 }
 
 // IsSriovVF implements dputils.DPUtilsLib.
@@ -379,51 +388,55 @@ func okNoOutput(_ string) (string, string, error) {
 }
 
 type mockedDevice struct {
-	pfLink    netlink.Link
-	vfLinks   []netlink.Link
-	pfDevice  *pci.Device
-	vfDevices []*pci.Device
+	PF  mockedFunction
+	VFs []mockedFunction
+}
+
+type mockedFunction struct {
+	link netlink.Link
+	pci  *pci.Device
 }
 
 func newIntelE810() *mockedDevice {
 	return &mockedDevice{
-		pfLink: &netlink.Dummy{
-			LinkAttrs: netlink.LinkAttrs{
-				Name:         "eno1",
-				HardwareAddr: mustParseMAC("aa:aa:aa:00:00:01"),
+		PF: mockedFunction{
+			link: &netlink.Dummy{
+				LinkAttrs: netlink.LinkAttrs{
+					Name:         "eno1",
+					HardwareAddr: mustParseMAC("aa:aa:aa:00:00:01"),
+				},
+			},
+			pci: &pci.Device{
+				Driver:  "ice",
+				Address: "0000:31:00.0",
+				Vendor: &pcidb.Vendor{
+					ID:   "8086",
+					Name: "Intel",
+				},
+				Product: &pcidb.Product{
+					ID:   "159b",
+					Name: "Intel Corporation Ethernet Controller E810-XXV for SFP",
+				},
+				Revision: "0x00",
+				Subsystem: &pcidb.Product{
+					ID:   "8086:0001",
+					Name: "unknown",
+				},
+				Class: &pcidb.Class{
+					ID:   "02",
+					Name: "Network controller",
+				},
+				Subclass: &pcidb.Subclass{
+					ID:   "00",
+					Name: "Ethernet controller",
+				},
+				ProgrammingInterface: &pcidb.ProgrammingInterface{
+					ID:   "00",
+					Name: "unknonw",
+				},
 			},
 		},
-		vfLinks: []netlink.Link{},
-		pfDevice: &pci.Device{
-			Driver:  "ice",
-			Address: "0000:31:00.0",
-			Vendor: &pcidb.Vendor{
-				ID:   "8086",
-				Name: "Intel",
-			},
-			Product: &pcidb.Product{
-				ID:   "159b",
-				Name: "Intel Corporation Ethernet Controller E810-XXV for SFP",
-			},
-			Revision: "0x00",
-			Subsystem: &pcidb.Product{
-				ID:   "8086:0001",
-				Name: "unknown",
-			},
-			Class: &pcidb.Class{
-				ID:   "02",
-				Name: "Network controller",
-			},
-			Subclass: &pcidb.Subclass{
-				ID:   "00",
-				Name: "Ethernet controller",
-			},
-			ProgrammingInterface: &pcidb.ProgrammingInterface{
-				ID:   "00",
-				Name: "unknonw",
-			},
-		},
-		vfDevices: []*pci.Device{},
+		VFs: []mockedFunction{},
 	}
 
 }
@@ -491,19 +504,27 @@ func (m *mockedDevice) pciDevices() []*pci.Device {
 	// 	})
 	// }
 
-	ret := []*pci.Device{m.pfDevice}
-	ret = append(ret, m.vfDevices...)
+	ret := []*pci.Device{m.PF.pci}
+
+	for _, vf := range m.VFs {
+		ret = append(ret, vf.pci)
+	}
+
 	return ret
 
 }
 
 func (m *mockedDevice) isSriovVF(pciAddress string) bool {
-	for _, vfDevice := range m.vfDevices {
-		if vfDevice.Address == pciAddress {
+	for _, vfDevice := range m.VFs {
+		if vfDevice.pci.Address == pciAddress {
 			return true
 		}
 	}
 	return false
+}
+
+func (m *mockedDevice) GetNumVFs() int {
+	return len(m.VFs)
 }
 
 var hostProcCmdLine []byte = []byte("BOOT_IMAGE=(hd0,gpt3)/boot/ostree/rhcos-3a85e2a0d869da4c0fa4f64c3ab3a1d3826e217cb5852ba645f9667f0547ff17/vmlinuz-5.14.0-570.17.1.el9_6.x86_64 rw ostree=/ostree/boot.0/rhcos/3a85e2a0d869da4c0fa4f64c3ab3a1d3826e217cb5852ba645f9667f0547ff17/0 ignition.platform.id=metal ip=dhcp root=UUID=3df22ef9-b181-4a4a-bc8f-ee4f105cabcf rw rootflags=prjquota boot=UUID=90d44ef1-0af2-4ccb-911e-ee7af86c62da systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all psi=0 intel_iommu=on iommu=pt")
