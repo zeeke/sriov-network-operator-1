@@ -141,6 +141,22 @@ func (s *systemMock) findPICDeviceByAddress(anyPciAddress string) *pci.Device {
 	panic(fmt.Errorf("device %s not found", anyPciAddress))
 }
 
+func (s *systemMock) findNetdeviceDeviceByAddress(anyPciAddress string) netlink.Link {
+	for _, mockDevice := range s.mockedDevices {
+		if mockDevice.pfDevice.Address == anyPciAddress {
+			return mockDevice.pfLink
+		}
+
+		for i, vfDevice := range mockDevice.vfDevices {
+			if vfDevice.Address == anyPciAddress {
+				return mockDevice.vfLinks[i]
+			}
+		}
+	}
+
+	panic(fmt.Errorf("device %s not found", anyPciAddress))
+}
+
 // CPU implements ghw.GHWLib.
 func (s *systemMock) CPU() (*cpu.Info, error) {
 	panic("unimplemented")
@@ -280,7 +296,7 @@ func (s *systemMock) GetDriverName(pciAddr string) (string, error) {
 
 // GetNetNames implements dputils.DPUtilsLib.
 func (s *systemMock) GetNetNames(pciAddr string) ([]string, error) {
-	return s.findPICDeviceByAddress(pciAddr)., nil
+	return []string{s.findNetdeviceDeviceByAddress(pciAddr).Attrs().Name}, nil
 }
 
 // GetSriovVFcapacity implements dputils.DPUtilsLib.
