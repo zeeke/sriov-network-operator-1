@@ -192,12 +192,12 @@ func (s *systemMock) Features(ifaceName string) (map[string]bool, error) {
 
 // DevLinkGetDeviceByName implements netlink.NetlinkLib.
 func (s *systemMock) DevLinkGetDeviceByName(bus string, device string) (*netlink.DevlinkDevice, error) {
-	panic("unimplemented")
+	return s.findDeviceByPCIAddress(device).devlink, nil
 }
 
 // DevLinkSetEswitchMode implements netlink.NetlinkLib.
 func (s *systemMock) DevLinkSetEswitchMode(dev *netlink.DevlinkDevice, newMode string) error {
-	panic("unimplemented")
+	panic("TODO")
 }
 
 // DevlinkGetDeviceParamByName implements netlink.NetlinkLib.
@@ -316,7 +316,15 @@ func (s *systemMock) GetVFID(pciAddr string) (vfID int, err error) {
 
 // GetVFList implements dputils.DPUtilsLib.
 func (s *systemMock) GetVFList(pf string) (vfList []string, err error) {
-	panic("unimplemented")
+	ret := s.findMockedDevice(func(mf *mockedFunction) bool {
+		return mf.pci.Address == pf
+	})
+
+	for _, vf := range ret.VFs {
+		vfList = append(vfList, vf.pci.Address)
+	}
+
+	return vfList, nil
 }
 
 // GetVFconfigured implements dputils.DPUtilsLib.
@@ -346,7 +354,7 @@ func (s *systemMock) IsSriovVF(pciAddr string) bool {
 
 // SriovConfigured implements dputils.DPUtilsLib.
 func (s *systemMock) SriovConfigured(addr string) bool {
-	panic("unimplemented")
+	return s.GetVFconfigured(addr) > 0 // TODO - this has the same logic as the real implementation
 }
 
 // Chroot implements utils.CmdInterface.
@@ -393,8 +401,9 @@ type mockedDevice struct {
 }
 
 type mockedFunction struct {
-	link netlink.Link
-	pci  *pci.Device
+	link    netlink.Link
+	pci     *pci.Device
+	devlink *netlink.DevlinkDevice
 }
 
 func newIntelE810() *mockedDevice {
@@ -404,6 +413,15 @@ func newIntelE810() *mockedDevice {
 				LinkAttrs: netlink.LinkAttrs{
 					Name:         "eno1",
 					HardwareAddr: mustParseMAC("aa:aa:aa:00:00:01"),
+				},
+			},
+			devlink: &netlink.DevlinkDevice{
+				BusName:    "pci",
+				DeviceName: "eno1",
+				Attrs: netlink.DevlinkDevAttrs{
+					Eswitch: netlink.DevlinkDevEswitchAttr{
+						Mode: "legacy",
+					},
 				},
 			},
 			pci: &pci.Device{
