@@ -46,6 +46,7 @@ var _ = BeforeSuite(func() {
 
 	logf.SetLogger(zap.New(
 		zap.WriteTo(GinkgoWriter),
+		zap.Level(zapcore.Level(-2)),
 		zap.UseDevMode(true),
 		func(o *zap.Options) {
 			o.TimeEncoder = zapcore.RFC3339NanoTimeEncoder

@@ -5,12 +5,15 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/jaypipes/ghw/pkg/cpu"
 	"github.com/jaypipes/ghw/pkg/pci"
 	"github.com/jaypipes/pcidb"
+	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
 	netlinkPkg "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host/internal/lib/netlink"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host/store"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/utils"
@@ -154,6 +157,12 @@ func (s *systemMock) findDeviceByPCIAddress(anyPciAddress string) *mockedFunctio
 		return device.pci.Address == anyPciAddress
 	})
 	return ret
+}
+
+func (s *systemMock) findDeviceContainingPCIAddress(anyPciAddress string) *mockedDevice {
+	return s.findMockedDevice(func(device *mockedFunction) bool {
+		s.find
+	})
 }
 
 // CPU implements ghw.GHWLib.
@@ -311,7 +320,7 @@ func (s *systemMock) GetSriovVFcapacity(pf string) int {
 
 // GetVFID implements dputils.DPUtilsLib.
 func (s *systemMock) GetVFID(pciAddr string) (vfID int, err error) {
-	panic("unimplemented")
+	s.findDevice()
 }
 
 // GetVFList implements dputils.DPUtilsLib.
@@ -319,6 +328,8 @@ func (s *systemMock) GetVFList(pf string) (vfList []string, err error) {
 	ret := s.findMockedDevice(func(mf *mockedFunction) bool {
 		return mf.pci.Address == pf
 	})
+
+	ret.updateVFs()
 
 	for _, vf := range ret.VFs {
 		vfList = append(vfList, vf.pci.Address)
@@ -329,9 +340,13 @@ func (s *systemMock) GetVFList(pf string) (vfList []string, err error) {
 
 // GetVFconfigured implements dputils.DPUtilsLib.
 func (s *systemMock) GetVFconfigured(pf string) int {
-	return len(s.findMockedDevice(func(mf *mockedFunction) bool {
+	ret := s.findMockedDevice(func(mf *mockedFunction) bool {
 		return mf.pci.Address == pf
-	}).VFs)
+	})
+
+	ret.updateVFs()
+
+	return len(ret.VFs)
 }
 
 // IsSriovPF implements dputils.DPUtilsLib.
@@ -406,7 +421,12 @@ type mockedFunction struct {
 	devlink *netlink.DevlinkDevice
 }
 
+// TODO - add more mocked devices
 func newIntelE810() *mockedDevice {
+
+	enforceFileContents(vars.FilesystemRoot+"/sys/class/net/eno1/speed", "25000")
+	enforceFileContents(vars.FilesystemRoot+"/sys/bus/pci/devices/0000:31:00.0/sriov_numvfs", "0")
+
 	return &mockedDevice{
 		PF: mockedFunction{
 			link: &netlink.Dummy{
@@ -459,77 +479,25 @@ func newIntelE810() *mockedDevice {
 
 }
 
+func enforceFileContents(path string, data string) {
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.WriteFile(path, []byte(data), 0644)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (m *mockedDevice) pciDevices() []*pci.Device {
-	// ret := []*pci.Device{{
-	// 	Driver:  "ice",
-	// 	Address: "0000:31:00.0",
-	// 	Vendor: &pcidb.Vendor{
-	// 		ID:   "8086",
-	// 		Name: "Intel",
-	// 	},
-	// 	Product: &pcidb.Product{
-	// 		ID:   "159b",
-	// 		Name: "Intel Corporation Ethernet Controller E810-XXV for SFP",
-	// 	},
-	// 	Revision: "0x00",
-	// 	Subsystem: &pcidb.Product{
-	// 		ID:   "8086:0001",
-	// 		Name: "unknown",
-	// 	},
-	// 	Class: &pcidb.Class{
-	// 		ID:   "02",
-	// 		Name: "Network controller",
-	// 	},
-	// 	Subclass: &pcidb.Subclass{
-	// 		ID:   "00",
-	// 		Name: "Ethernet controller",
-	// 	},
-	// 	ProgrammingInterface: &pcidb.ProgrammingInterface{
-	// 		ID:   "00",
-	// 		Name: "unknonw",
-	// 	},
-	// }}
-
-	// for i := range m.vfLinks {
-	// 	ret = append(ret, &pci.Device{
-	// 		Driver:  "ice",
-	// 		Address: fmt.Sprintf("0000:31:00.%d", i+1), // TODO - handle double digits
-	// 		Vendor: &pcidb.Vendor{
-	// 			ID:   "8086",
-	// 			Name: "Intel",
-	// 		},
-	// 		Product: &pcidb.Product{
-	// 			ID:   "1889",
-	// 			Name: "Intel Corporation Ethernet Adaptive Virtual Function",
-	// 		},
-	// 		Revision: "0x00",
-	// 		Subsystem: &pcidb.Product{
-	// 			ID:   "8086:0001",
-	// 			Name: "unknown",
-	// 		},
-	// 		Class: &pcidb.Class{
-	// 			ID:   "02",
-	// 			Name: "Network controller",
-	// 		},
-	// 		Subclass: &pcidb.Subclass{
-	// 			ID:   "00",
-	// 			Name: "Ethernet controller",
-	// 		},
-	// 		ProgrammingInterface: &pcidb.ProgrammingInterface{
-	// 			ID:   "00",
-	// 			Name: "unknonw",
-	// 		},
-	// 	})
-	// }
-
 	ret := []*pci.Device{m.PF.pci}
-
 	for _, vf := range m.VFs {
 		ret = append(ret, vf.pci)
 	}
 
 	return ret
-
 }
 
 func (m *mockedDevice) isSriovVF(pciAddress string) bool {
@@ -541,8 +509,76 @@ func (m *mockedDevice) isSriovVF(pciAddress string) bool {
 	return false
 }
 
-func (m *mockedDevice) GetNumVFs() int {
-	return len(m.VFs)
+func (m *mockedDevice) updateVFs() int {
+
+	numVfsFilePath := filepath.Join(vars.FilesystemRoot, consts.SysBusPciDevices, m.PF.pci.Address, consts.NumVfsFile)
+	numVfs, err := os.ReadFile(numVfsFilePath)
+	if err != nil {
+		panic(err)
+	}
+
+	numVfsInt, err := strconv.Atoi(string(numVfs))
+	if err != nil {
+		panic(err)
+	}
+
+	mockedVfs := len(m.VFs)
+
+	if mockedVfs == numVfsInt {
+		return numVfsInt
+	}
+
+	if mockedVfs > numVfsInt {
+		m.removeVfs(mockedVfs - numVfsInt)
+	} else {
+		m.addVfs(numVfsInt - mockedVfs)
+	}
+
+	return numVfsInt
+}
+
+func (m *mockedDevice) addVfs(numVfs int) {
+	for i := 0; i < numVfs; i++ {
+		m.VFs = append(m.VFs, mockedFunction{
+			link: &netlink.Dummy{
+				LinkAttrs: netlink.LinkAttrs{
+					Name:         fmt.Sprintf("%svf%d", m.PF.link.Attrs().Name, len(m.VFs)),
+					HardwareAddr: mustParseMAC("aa:aa:bb:00:00:01"),
+				},
+			},
+			pci: &pci.Device{
+				Driver:  "iavf",
+				Address: fmt.Sprintf("0000:31:00.%d", len(m.VFs)),
+				Vendor: &pcidb.Vendor{
+					ID:   "8086",
+					Name: "Intel",
+				},
+				Product: &pcidb.Product{
+					ID:   "1889",
+					Name: "Intel Corporation Ethernet Adaptive Virtual Function",
+				},
+				Revision: "0x00",
+				Class: &pcidb.Class{
+					ID:   "02",
+					Name: "Network controller",
+				},
+				Subclass: &pcidb.Subclass{
+					ID:   "00",
+					Name: "Ethernet controller",
+				},
+				ProgrammingInterface: &pcidb.ProgrammingInterface{
+					ID:   "00",
+					Name: "unknonw",
+				},
+			},
+		})
+	}
+}
+
+func (m *mockedDevice) removeVfs(numVfs int) {
+	for i := 0; i < numVfs; i++ {
+		m.VFs = m.VFs[:len(m.VFs)-1]
+	}
 }
 
 var hostProcCmdLine []byte = []byte("BOOT_IMAGE=(hd0,gpt3)/boot/ostree/rhcos-3a85e2a0d869da4c0fa4f64c3ab3a1d3826e217cb5852ba645f9667f0547ff17/vmlinuz-5.14.0-570.17.1.el9_6.x86_64 rw ostree=/ostree/boot.0/rhcos/3a85e2a0d869da4c0fa4f64c3ab3a1d3826e217cb5852ba645f9667f0547ff17/0 ignition.platform.id=metal ip=dhcp root=UUID=3df22ef9-b181-4a4a-bc8f-ee4f105cabcf rw rootflags=prjquota boot=UUID=90d44ef1-0af2-4ccb-911e-ee7af86c62da systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all psi=0 intel_iommu=on iommu=pt")

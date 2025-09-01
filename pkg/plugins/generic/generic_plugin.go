@@ -217,6 +217,8 @@ func (p *GenericPlugin) Apply() error {
 		return err
 	}
 
+	log.Log.Info("XXX Apply(): syncDriverState() done")
+
 	// When calling from systemd do not try to chroot
 	if !vars.UsingSystemdMode {
 		exit, err := p.helpers.Chroot(consts.Host)

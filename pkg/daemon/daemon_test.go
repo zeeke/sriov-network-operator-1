@@ -285,7 +285,7 @@ var _ = Describe("Daemon Controller", Ordered, func() {
 
 			nodeState.Spec.Interfaces = []sriovnetworkv1.Interface{
 				{Name: "eno1",
-					PciAddress: "0000:16:00.0",
+					PciAddress: "0000:31:00.0",
 					LinkType:   "eth",
 					NumVfs:     2,
 					VfGroups: []sriovnetworkv1.VfGroup{
@@ -297,11 +297,13 @@ var _ = Describe("Daemon Controller", Ordered, func() {
 			}
 			err = k8sClient.Update(ctx, nodeState)
 			Expect(err).ToNot(HaveOccurred())
-			By("waiting to require drain")
+
+			By("waiting for the VFs to be configured")
 			EventuallyWithOffset(1, func(g Gomega) {
 				g.Expect(k8sClient.Get(context.Background(), types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)).
 					ToNot(HaveOccurred())
-				g.Expect(dc.GetLastAppliedGeneration()).To(Equal(int64(2)))
+				g.Expect(nodeState.Status.SyncStatus).To(Equal(constants.SyncStatusSucceeded))
+				g.Expect(nodeState.Status.Interfaces[0].VFs).To(HaveLen(2))
 			}, waitTime, retryTime).Should(Succeed())
 
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: nodeState.Namespace, Name: nodeState.Name}, nodeState)
@@ -333,6 +335,8 @@ var _ = Describe("Daemon Controller", Ordered, func() {
 					ToNot(HaveOccurred())
 
 				g.Expect(nodeState.Status.SyncStatus).To(Equal(constants.SyncStatusSucceeded))
+				g.Expect(nodeState.Status.Interfaces[0].VFs).To(HaveLen(0))
+
 			}, waitTime, retryTime).Should(Succeed())
 
 			Expect(nodeState.Status.LastSyncError).To(Equal(""))

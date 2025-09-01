@@ -75,6 +75,7 @@ func (s *sriov) SetSriovNumVfs(pciAddr string, numVfs int) error {
 	log.Log.V(2).Info("SetSriovNumVfs(): set NumVfs", "device", pciAddr, "numVfs", numVfs)
 	numVfsFilePath := filepath.Join(vars.FilesystemRoot, consts.SysBusPciDevices, pciAddr, consts.NumVfsFile)
 	bs := []byte(strconv.Itoa(numVfs))
+
 	err := os.WriteFile(numVfsFilePath, []byte("0"), os.ModeAppend)
 	if err != nil {
 		log.Log.Error(err, "SetSriovNumVfs(): fail to reset NumVfs file", "path", numVfsFilePath)
@@ -603,6 +604,7 @@ func (s *sriov) configSriovDevice(iface *sriovnetworkv1.Interface, skipVFConfigu
 
 func (s *sriov) ConfigSriovInterfaces(storeManager store.ManagerInterface,
 	interfaces []sriovnetworkv1.Interface, ifaceStatuses []sriovnetworkv1.InterfaceExt, skipVFConfiguration bool) error {
+	log.Log.Info("XXX ConfigSriovInterfaces(): start sriov configuration", "interfaces", interfaces, "ifaceStatuses", ifaceStatuses, "skipVFConfiguration", skipVFConfiguration)
 	toBeConfigured, toBeResetted, err := s.getConfigureAndReset(storeManager, interfaces, ifaceStatuses)
 	if err != nil {
 		log.Log.Error(err, "cannot get a list of interfaces to configure")
