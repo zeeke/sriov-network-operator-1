@@ -46,6 +46,8 @@ const (
 	EnableSriov           = "SRIOV_EN"
 	LinkTypeP1            = "LINK_TYPE_P1"
 	LinkTypeP2            = "LINK_TYPE_P2"
+	PfNumOfVfValid        = "PF_NUM_OF_VF_VALID"
+	PfNumOfVf             = "PF_NUM_OF_VF"
 	MellanoxVendorID      = "15b3"
 )
 
@@ -54,6 +56,17 @@ type MlxNic struct {
 	TotalVfs    int
 	LinkTypeP1  string
 	LinkTypeP2  string
+	// PfNumOfVfValid reports whether PF_NUM_OF_VF overrides NUM_OF_VFS for the PF.
+	// It is nil when the firmware doesn't expose the parameter or, when used as attributes to change,
+	// when the parameter must be left untouched.
+	PfNumOfVfValid *bool
+	// PfNumOfVf is the per-PF number of VFs, effective only when PfNumOfVfValid is true
+	PfNumOfVf int
+}
+
+// IsPfNumOfVfOverrideEnabled returns true if PF_NUM_OF_VF overrides NUM_OF_VFS for the PF
+func (n *MlxNic) IsPfNumOfVfOverrideEnabled() bool {
+	return n.PfNumOfVfValid != nil && *n.PfNumOfVfValid
 }
 
 //go:generate ../../../bin/mockgen -destination mock/mock_mellanox.go -source mellanox.go
@@ -199,6 +212,9 @@ func (m *mellanoxHelper) MlxConfigFW(attributesToChange map[string]MlxNic) error
 		if fwArgs.TotalVfs > -1 {
 			cmdArgs = append(cmdArgs, fmt.Sprintf("%s=%d", TotalVfs, fwArgs.TotalVfs))
 		}
+		if fwArgs.PfNumOfVfValid != nil {
+			cmdArgs = append(cmdArgs, fmt.Sprintf("%s=%s", PfNumOfVfValid, mstconfigBool(*fwArgs.PfNumOfVfValid)))
+		}
 		if len(fwArgs.LinkTypeP1) > 0 {
 			cmdArgs = append(cmdArgs, fmt.Sprintf("%s=%s", LinkTypeP1, fwArgs.LinkTypeP1))
 		}
@@ -221,7 +237,7 @@ func (m *mellanoxHelper) MlxConfigFW(attributesToChange map[string]MlxNic) error
 
 func (m *mellanoxHelper) GetMlxNicFwData(pciAddress string) (current, next *MlxNic, err error) {
 	log.Log.Info("mellanox-plugin getMlnxNicFwData()", "device", pciAddress)
-	attrs := []string{TotalVfs, EnableSriov, LinkTypeP1, LinkTypeP2}
+	attrs := []string{TotalVfs, EnableSriov, LinkTypeP1, LinkTypeP2, PfNumOfVfValid, PfNumOfVf}
 
 	out, stderr, err := m.MstConfigReadData(pciAddress)
 	if err != nil {
@@ -249,12 +265,17 @@ func ParseMstconfigOutput(mstOutput string, attributes []string) (fwCurrent, fwN
 	mstOutputLines := strings.Split(mstOutput, "\n")
 	for _, attr := range attributes {
 		for _, line := range mstOutputLines {
-			if strings.Contains(line, attr) {
-				regexResult := formatRegex.FindStringSubmatch(line)
-				fwCurrent[attr] = regexResult[3]
-				fwNext[attr] = regexResult[4]
-				break
+			if !strings.Contains(line, attr) {
+				continue
 			}
+			regexResult := formatRegex.FindStringSubmatch(line)
+			// match the attribute name exactly, PF_NUM_OF_VF is a prefix of PF_NUM_OF_VF_VALID
+			if regexResult == nil || regexResult[1] != attr {
+				continue
+			}
+			fwCurrent[attr] = regexResult[3]
+			fwNext[attr] = regexResult[4]
+			break
 		}
 	}
 	return
@@ -334,6 +355,23 @@ func HandleEnableSriov(totalVfs int, fwCurrent, fwNext, attrs *MlxNic) (needRebo
 	return false, false
 }
 
+// HandlePfNumOfVfValid disables the per-PF VF count override (PF_NUM_OF_VF_VALID) so the NUM_OF_VFS configured
+// by the operator governs the VF capacity of the PF. A reboot is needed as long as the override is active in the
+// current firmware configuration, the write is skipped if the change is already staged for the next boot.
+func HandlePfNumOfVfValid(fwCurrent, fwNext, attrs *MlxNic) (needReboot, changeWithoutReboot bool) {
+	if fwNext.IsPfNumOfVfOverrideEnabled() {
+		log.Log.V(2).Info("Disabling PF_NUM_OF_VF_VALID for next boot", "current-pf-num-of-vf", fwCurrent.PfNumOfVf)
+		disabled := false
+		attrs.PfNumOfVfValid = &disabled
+	}
+
+	needReboot = fwCurrent.IsPfNumOfVfOverrideEnabled()
+
+	// Simplify this. boolean logic isn't very readable.
+	changeWithoutReboot = !needReboot && attrs.PfNumOfVfValid != nil
+	return
+}
+
 // handleLinkType based on existing linkType and requested link
 func HandleLinkType(pciPrefix string, fwData, attr *MlxNic,
 	mellanoxNicsSpec map[string]sriovnetworkv1.Interface,
@@ -387,12 +425,34 @@ func mlnxNicFromMap(mstData map[string]string) (*MlxNic, error) {
 	}
 
 	fwData.TotalVfs = i
+
+	// PF_NUM_OF_VF_VALID and PF_NUM_OF_VF are not exposed by older firmware
+	if pfNumOfVfValid, ok := mstData[PfNumOfVfValid]; ok {
+		valid := strings.Contains(pfNumOfVfValid, "True")
+		fwData.PfNumOfVfValid = &valid
+	}
+	if pfNumOfVf, ok := mstData[PfNumOfVf]; ok {
+		// PF_NUM_OF_VF is only used for diagnostics, don't fail the firmware reading if it can't be parsed
+		fwData.PfNumOfVf, err = strconv.Atoi(pfNumOfVf)
+		if err != nil {
+			log.Log.Error(err, "mellanox-plugin mlnxNicFromMap(): failed to parse PF_NUM_OF_VF", "value", pfNumOfVf)
+			fwData.PfNumOfVf = 0
+		}
+	}
+
 	fwData.LinkTypeP1 = getLinkType(mstData[LinkTypeP1])
 	if linkTypeP2, ok := mstData[LinkTypeP2]; ok {
 		fwData.LinkTypeP2 = getLinkType(linkTypeP2)
 	}
 
 	return fwData, nil
+}
+
+func mstconfigBool(value bool) string {
+	if value {
+		return "True"
+	}
+	return "False"
 }
 
 func getLinkType(linkType string) string {

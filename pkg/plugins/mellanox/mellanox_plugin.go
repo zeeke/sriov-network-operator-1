@@ -104,14 +104,22 @@ func (p *MellanoxPlugin) OnNodeStateChange(new *sriovnetworkv1.SriovNetworkNodeS
 
 		totalVfs, totalVfsNeedReboot, totalVfsChangeWithoutReboot := mlx.HandleTotalVfs(fwCurrent, fwNext, attrs, ifaceSpec, isDualPort, mellanoxNicsSpec)
 		sriovEnNeedReboot, sriovEnChangeWithoutReboot := mlx.HandleEnableSriov(totalVfs, fwCurrent, fwNext, attrs)
-		needReboot = totalVfsNeedReboot || sriovEnNeedReboot
+		// CTODO can we keep `needReboot` here?
+		nicNeedReboot := totalVfsNeedReboot || sriovEnNeedReboot
 		changeWithoutReboot = totalVfsChangeWithoutReboot || sriovEnChangeWithoutReboot
 
 		needLinkChange, err := mlx.HandleLinkType(pciPrefix, fwCurrent, attrs, mellanoxNicsSpec, mellanoxNicsStatus)
 		if err != nil {
 			return false, false, err
 		}
-		needReboot = needReboot || needLinkChange
+		nicNeedReboot = nicNeedReboot || needLinkChange
+
+		pfNumOfVfValidNeedReboot, pfNumOfVfValidChangeWithoutReboot, err := p.handlePfNumOfVfValid(ifaceSpec.PciAddress, fwCurrent, fwNext, attrs)
+		if err != nil {
+			return false, false, err
+		}
+		nicNeedReboot = nicNeedReboot || pfNumOfVfValidNeedReboot
+		changeWithoutReboot = changeWithoutReboot || pfNumOfVfValidChangeWithoutReboot
 
 		// no FW changes allowed when NIC is externally managed
 		if ifaceSpec.ExternallyManaged {
@@ -125,13 +133,14 @@ func (p *MellanoxPlugin) OnNodeStateChange(new *sriovnetworkv1.SriovNetworkNodeS
 			}
 		}
 
-		if needReboot || changeWithoutReboot {
+		if nicNeedReboot || changeWithoutReboot {
 			attributesToChange[ifaceSpec.PciAddress] = *attrs
 		}
 
-		if needReboot {
+		if nicNeedReboot {
 			pciAddressesToReset = append(pciAddressesToReset, ifaceSpec.PciAddress)
 		}
+		needReboot = needReboot || nicNeedReboot
 	}
 
 	// Set total VFs to 0 for mellanox interfaces with no spec
@@ -209,6 +218,54 @@ func (p *MellanoxPlugin) Apply() error {
 		return p.helpers.MlxResetFW(pciAddressesToReset, mellanoxNicsStatus)
 	}
 	return nil
+}
+
+// handlePfNumOfVfValid checks the PF_NUM_OF_VF_VALID override on every port of the NIC requested by the policies.
+// The override is a per-PF setting, so it is evaluated and fixed for each port using the port PCI address.
+// Attributes for the port with PCI address processedPciAddress are stored in attrs, for the other port they are
+// directly added to attributesToChange.
+func (p *MellanoxPlugin) handlePfNumOfVfValid(processedPciAddress string, fwCurrent, fwNext, attrs *mlx.MlxNic) (
+	needReboot, changeWithoutReboot bool, err error) {
+	pciPrefix := mlx.GetPciAddressPrefix(processedPciAddress)
+	for _, pciAddress := range []string{pciPrefix + "0", pciPrefix + "1"} {
+		portSpec, ok := mellanoxNicsSpec[pciAddress]
+		if !ok {
+			continue
+		}
+
+		portFwCurrent, portFwNext, portAttrs := fwCurrent, fwNext, attrs
+		if pciAddress != processedPciAddress {
+			portFwCurrent, portFwNext, err = p.helpers.GetMlxNicFwData(pciAddress)
+			if err != nil {
+				return false, false, err
+			}
+			portAttrs = &mlx.MlxNic{TotalVfs: -1}
+		}
+
+		// no FW changes allowed when NIC is externally managed, fail only if the override prevents creating the VFs
+		if portSpec.ExternallyManaged {
+			if portFwCurrent.IsPfNumOfVfOverrideEnabled() && portFwCurrent.PfNumOfVf < portSpec.NumVfs {
+				return false, false, fmt.Errorf(
+					"interface %s has %s enabled in the firmware with %s %d lower than the requested %d VFs "+
+						"but the policy is externally managed failing: set %s=False or %s>=%d in the firmware",
+					pciAddress, mlx.PfNumOfVfValid, mlx.PfNumOfVf, portFwCurrent.PfNumOfVf, portSpec.NumVfs,
+					mlx.PfNumOfVfValid, mlx.PfNumOfVf, portSpec.NumVfs)
+			}
+			continue
+		}
+
+		portNeedReboot, portChangeWithoutReboot := mlx.HandlePfNumOfVfValid(portFwCurrent, portFwNext, portAttrs)
+		if portNeedReboot || portChangeWithoutReboot {
+			log.Log.Info("mellanox-plugin: PF_NUM_OF_VF_VALID is enabled and overrides NUM_OF_VFS for the PF, it must be disabled",
+				"pciAddress", pciAddress, "need-reboot", portNeedReboot)
+		}
+		if pciAddress != processedPciAddress && portAttrs.PfNumOfVfValid != nil {
+			attributesToChange[pciAddress] = *portAttrs
+		}
+		needReboot = needReboot || portNeedReboot
+		changeWithoutReboot = changeWithoutReboot || portChangeWithoutReboot
+	}
+	return needReboot, changeWithoutReboot, nil
 }
 
 // nicHasExternallyManagedPFs returns true if one of the ports(interface) of the NIC is marked as externally managed

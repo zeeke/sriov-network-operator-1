@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	"github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/consts"
@@ -322,6 +323,184 @@ var _ = Describe("SRIOV", Ordered, func() {
 			Expect(needReboot).To(BeFalse())
 			_, exist := attributesToChange["0000:d8:00.0"]
 			Expect(exist).To(BeFalse())
+		})
+	})
+
+	Context("OnNodeStateChange PF_NUM_OF_VF_VALID", func() {
+		const (
+			port0 = "0000:d8:00.0"
+			port1 = "0000:d8:00.1"
+		)
+
+		var fwData = func(valid *bool, pfNumOfVf int) *mlx.MlxNic {
+			return &mlx.MlxNic{EnableSriov: true, TotalVfs: 5, PfNumOfVfValid: valid, PfNumOfVf: pfNumOfVf}
+		}
+
+		var setSpec = func(externallyManaged bool, pciAddresses ...string) {
+			sriovNetworkNodeState.Spec.Interfaces = sriovnetworkv1.Interfaces{}
+			sriovNetworkNodeState.Status.Interfaces = sriovnetworkv1.InterfaceExts{}
+			for _, pciAddress := range pciAddresses {
+				sriovNetworkNodeState.Spec.Interfaces = append(sriovNetworkNodeState.Spec.Interfaces, sriovnetworkv1.Interface{
+					Name: "ens1f0np0", NumVfs: 5, PciAddress: pciAddress, ExternallyManaged: externallyManaged,
+					VfGroups: []sriovnetworkv1.VfGroup{{ResourceName: "test", PolicyName: "test", VfRange: "0-4"}},
+				})
+				sriovNetworkNodeState.Status.Interfaces = append(sriovNetworkNodeState.Status.Interfaces, sriovnetworkv1.InterfaceExt{
+					Name: "ens1f0np0", PciAddress: pciAddress, Vendor: "15b3", DeviceID: "1013", TotalVfs: 0,
+				})
+			}
+		}
+
+		BeforeEach(func() {
+			vars.FeatureGate.Init(map[string]bool{consts.MellanoxFirmwareResetFeatureGate: false})
+		})
+
+		It("should disable the override and reboot when SRIOV_EN and NUM_OF_VFS already match (reproducer)", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false).Times(2)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(true), 0), fwData(ptr.To(true), 0), nil)
+			setSpec(false, port0)
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeTrue())
+			Expect(needReboot).To(BeTrue())
+			Expect(pciAddressesToReset).To(Equal([]string{port0}))
+
+			h.EXPECT().MlxConfigFW(map[string]mlx.MlxNic{
+				port0: {TotalVfs: -1, PfNumOfVfValid: ptr.To(false)},
+			}).Return(nil)
+			Expect(m.Apply()).To(Succeed())
+		})
+
+		It("should reboot without writing again when the disabling is staged and converge after reboot", func() {
+			setSpec(false, port0)
+
+			// after Apply, before reboot: next boot already has the override disabled
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(true), 0), fwData(ptr.To(false), 0), nil)
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeTrue())
+			Expect(needReboot).To(BeTrue())
+			Expect(attributesToChange).To(Equal(map[string]mlx.MlxNic{port0: {TotalVfs: -1}}))
+
+			// after reboot: second reconciliation is a no-op
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(false), 0), fwData(ptr.To(false), 0), nil)
+			needDrain, needReboot, err = m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeFalse())
+			Expect(needReboot).To(BeFalse())
+			Expect(attributesToChange).To(BeEmpty())
+			Expect(pciAddressesToReset).To(BeEmpty())
+		})
+
+		It("should disable the override without reboot when the enabling is only pending for next boot", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(false), 0), fwData(ptr.To(true), 0), nil)
+			setSpec(false, port0)
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeFalse())
+			Expect(needReboot).To(BeFalse())
+			Expect(attributesToChange).To(Equal(map[string]mlx.MlxNic{port0: {TotalVfs: -1, PfNumOfVfValid: ptr.To(false)}}))
+			Expect(pciAddressesToReset).To(BeEmpty())
+		})
+
+		It("should not change anything if the override is already disabled", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(false), 0), fwData(ptr.To(false), 0), nil)
+			setSpec(false, port0)
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeFalse())
+			Expect(needReboot).To(BeFalse())
+			Expect(attributesToChange).To(BeEmpty())
+		})
+
+		It("should not change anything if the firmware doesn't expose the override", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(nil, 0), fwData(nil, 0), nil)
+			setSpec(false, port0)
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeFalse())
+			Expect(needReboot).To(BeFalse())
+			Expect(attributesToChange).To(BeEmpty())
+		})
+
+		It("should fail without changing the firmware if externally managed and the override blocks the requested VFs", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(true), 0), fwData(ptr.To(true), 0), nil)
+			setSpec(true, port0)
+
+			_, _, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).To(MatchError("interface 0000:d8:00.0 has PF_NUM_OF_VF_VALID enabled in the firmware with PF_NUM_OF_VF 0 " +
+				"lower than the requested 5 VFs but the policy is externally managed failing: " +
+				"set PF_NUM_OF_VF_VALID=False or PF_NUM_OF_VF>=5 in the firmware"))
+			Expect(attributesToChange).To(BeEmpty())
+		})
+
+		It("should not change the firmware if externally managed and the override allows the requested VFs", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(true), 8), fwData(ptr.To(true), 8), nil)
+			setSpec(true, port0)
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeFalse())
+			Expect(needReboot).To(BeFalse())
+			Expect(attributesToChange).To(BeEmpty())
+		})
+
+		It("should disable the override on the dual-port NIC port that has it enabled", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(false), 0), fwData(ptr.To(false), 0), nil)
+			h.EXPECT().GetMlxNicFwData(port1).Return(fwData(ptr.To(true), 0), fwData(ptr.To(true), 0), nil)
+			setSpec(false, port0, port1)
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeTrue())
+			Expect(needReboot).To(BeTrue())
+			Expect(attributesToChange).To(HaveKeyWithValue(port1, mlx.MlxNic{TotalVfs: -1, PfNumOfVfValid: ptr.To(false)}))
+			if port0Attrs, ok := attributesToChange[port0]; ok {
+				Expect(port0Attrs).To(Equal(mlx.MlxNic{TotalVfs: -1}))
+			}
+			// a single firmware reset per NIC
+			Expect(pciAddressesToReset).To(HaveLen(1))
+		})
+
+		It("should disable the override on both ports of a dual-port NIC", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(true), 0), fwData(ptr.To(true), 0), nil)
+			h.EXPECT().GetMlxNicFwData(port1).Return(fwData(ptr.To(true), 0), fwData(ptr.To(true), 0), nil)
+			setSpec(false, port0, port1)
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeTrue())
+			Expect(needReboot).To(BeTrue())
+			Expect(attributesToChange).To(Equal(map[string]mlx.MlxNic{
+				port0: {TotalVfs: -1, PfNumOfVfValid: ptr.To(false)},
+				port1: {TotalVfs: -1, PfNumOfVfValid: ptr.To(false)},
+			}))
+			Expect(pciAddressesToReset).To(HaveLen(1))
+		})
+
+		It("should keep the reboot requirement of a NIC when another NIC doesn't need it", func() {
+			h.EXPECT().IsKernelLockdownMode().Return(false)
+			h.EXPECT().GetMlxNicFwData(port0).Return(fwData(ptr.To(true), 0), fwData(ptr.To(true), 0), nil)
+			h.EXPECT().GetMlxNicFwData("0000:d9:00.0").Return(fwData(ptr.To(false), 0), fwData(ptr.To(false), 0), nil)
+			setSpec(false, port0, "0000:d9:00.0")
+
+			needDrain, needReboot, err := m.OnNodeStateChange(sriovNetworkNodeState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(needDrain).To(BeTrue())
+			Expect(needReboot).To(BeTrue())
+			Expect(pciAddressesToReset).To(Equal([]string{port0}))
 		})
 	})
 

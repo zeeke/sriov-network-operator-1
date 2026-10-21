@@ -2,11 +2,13 @@ package mlxutils
 
 import (
 	"fmt"
+	"regexp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"go.uber.org/mock/gomock"
+	"k8s.io/utils/ptr"
 
 	sriovnetworkv1 "github.com/k8snetworkplumbingwg/sriov-network-operator/api/v1"
 	mock_host "github.com/k8snetworkplumbingwg/sriov-network-operator/pkg/host/mock"
@@ -294,6 +296,28 @@ var _ = Describe("SRIOV", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		It("should only disable PF_NUM_OF_VF_VALID if it's the only change", func() {
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				getBFMstconfigOutput(false, false),
+				"", nil)
+			u.EXPECT().RunCommand("mstconfig", "-d", "0000:d8:00.0", "-y", "set", "PF_NUM_OF_VF_VALID=False").Return(
+				"",
+				"", nil)
+			err := m.MlxConfigFW(map[string]MlxNic{"0000:d8:00.0": {TotalVfs: -1, PfNumOfVfValid: ptr.To(false)}})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should disable PF_NUM_OF_VF_VALID together with the other args", func() {
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				getBFMstconfigOutput(false, false),
+				"", nil)
+			u.EXPECT().RunCommand("mstconfig", "-d", "0000:d8:00.0", "-y", "set", "SRIOV_EN=True", "NUM_OF_VFS=5", "PF_NUM_OF_VF_VALID=False", "LINK_TYPE_P1=ETH").Return(
+				"",
+				"", nil)
+			err := m.MlxConfigFW(map[string]MlxNic{"0000:d8:00.0": {EnableSriov: true, TotalVfs: 5, LinkTypeP1: "ETH", PfNumOfVfValid: ptr.To(false)}})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		It("should return error if args is not right", func() {
 			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
 				getBFMstconfigOutput(false, false),
@@ -378,6 +402,88 @@ var _ = Describe("SRIOV", func() {
 			Expect(next.EnableSriov).To(BeTrue())
 			Expect(next.LinkTypeP1).To(Equal("Unknown"))
 			Expect(next.LinkTypeP2).To(Equal("ETH"))
+		})
+	})
+
+	Context("GetMlxNicFwData PF_NUM_OF_VF_VALID", func() {
+		It("should parse the per-PF VF override when enabled", func() {
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				withPfNumOfVfOverride(getMstconfigOutput(5, 5, "True", "True", "True", true, false, false), "True(1)", "True(1)", 0),
+				"", nil)
+			current, next, err := m.GetMlxNicFwData("0000:d8:00.0")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(current.TotalVfs).To(Equal(5))
+			Expect(current.EnableSriov).To(BeTrue())
+			Expect(current.PfNumOfVfValid).To(Equal(ptr.To(true)))
+			Expect(current.PfNumOfVf).To(Equal(0))
+			Expect(next.TotalVfs).To(Equal(5))
+			Expect(next.PfNumOfVfValid).To(Equal(ptr.To(true)))
+			Expect(next.PfNumOfVf).To(Equal(0))
+		})
+
+		It("should parse different current and next values", func() {
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				withPfNumOfVfOverride(getMstconfigOutput(5, 5, "True", "True", "True", true, false, false), "True(1)", "False(0)", 3),
+				"", nil)
+			current, next, err := m.GetMlxNicFwData("0000:d8:00.0")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(current.PfNumOfVfValid).To(Equal(ptr.To(true)))
+			Expect(current.PfNumOfVf).To(Equal(3))
+			Expect(next.PfNumOfVfValid).To(Equal(ptr.To(false)))
+			Expect(next.PfNumOfVf).To(Equal(3))
+		})
+
+		It("should report the override as disabled", func() {
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				getMstconfigOutput(5, 5, "True", "True", "True", true, false, false),
+				"", nil)
+			current, next, err := m.GetMlxNicFwData("0000:d8:00.0")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(current.PfNumOfVfValid).To(Equal(ptr.To(false)))
+			Expect(next.PfNumOfVfValid).To(Equal(ptr.To(false)))
+		})
+
+		It("should report the override as not supported if the firmware doesn't expose it", func() {
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				withoutPfNumOfVfOverride(getMstconfigOutput(5, 5, "True", "True", "True", true, false, false)),
+				"", nil)
+			current, next, err := m.GetMlxNicFwData("0000:d8:00.0")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(current.TotalVfs).To(Equal(5))
+			Expect(current.PfNumOfVfValid).To(BeNil())
+			Expect(next.PfNumOfVfValid).To(BeNil())
+		})
+	})
+
+	Context("PF_NUM_OF_VF_VALID reproducer", func() {
+		It("should disable the override when SRIOV_EN and NUM_OF_VFS already match the request", func() {
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				withPfNumOfVfOverride(getMstconfigOutput(5, 5, "True", "True", "True", true, false, false), "True(1)", "True(1)", 0),
+				"", nil)
+			fwCurrent, fwNext, err := m.GetMlxNicFwData("0000:d8:00.0")
+			Expect(err).ToNot(HaveOccurred())
+
+			ifaceSpec := sriovnetworkv1.Interface{PciAddress: "0000:d8:00.0", NumVfs: 5}
+			attrs := &MlxNic{TotalVfs: -1}
+			totalVfs, totalVfsNeedReboot, totalVfsChangeWithoutReboot := HandleTotalVfs(fwCurrent, fwNext, attrs, ifaceSpec, false,
+				map[string]sriovnetworkv1.Interface{"0000:d8:00.0": ifaceSpec})
+			Expect(totalVfsNeedReboot).To(BeFalse())
+			Expect(totalVfsChangeWithoutReboot).To(BeFalse())
+			sriovEnNeedReboot, sriovEnChangeWithoutReboot := HandleEnableSriov(totalVfs, fwCurrent, fwNext, attrs)
+			Expect(sriovEnNeedReboot).To(BeFalse())
+			Expect(sriovEnChangeWithoutReboot).To(BeFalse())
+
+			needReboot, changeWithoutReboot := HandlePfNumOfVfValid(fwCurrent, fwNext, attrs)
+			Expect(needReboot).To(BeTrue())
+			Expect(changeWithoutReboot).To(BeFalse())
+
+			u.EXPECT().RunCommand("mstconfig", "-e", "-d", "0000:d8:00.0", "q").Return(
+				getBFMstconfigOutput(false, false),
+				"", nil)
+			u.EXPECT().RunCommand("mstconfig", "-d", "0000:d8:00.0", "-y", "set", "PF_NUM_OF_VF_VALID=False").Return(
+				"",
+				"", nil)
+			Expect(m.MlxConfigFW(map[string]MlxNic{"0000:d8:00.0": *attrs})).To(Succeed())
 		})
 	})
 
@@ -485,6 +591,48 @@ var _ = Describe("SRIOV", func() {
 			Expect(needReboot).To(BeFalse())
 			Expect(changeWithoutReboot).To(BeFalse())
 			Expect(attrs.EnableSriov).To(BeFalse())
+		})
+	})
+
+	Context("HandlePfNumOfVfValid", func() {
+		It("should disable the override and require reboot if enabled in current and next boot", func() {
+			attrs := &MlxNic{TotalVfs: -1}
+			needReboot, changeWithoutReboot := HandlePfNumOfVfValid(
+				&MlxNic{PfNumOfVfValid: ptr.To(true)}, &MlxNic{PfNumOfVfValid: ptr.To(true)}, attrs)
+			Expect(needReboot).To(BeTrue())
+			Expect(changeWithoutReboot).To(BeFalse())
+			Expect(attrs.PfNumOfVfValid).To(Equal(ptr.To(false)))
+		})
+		It("should require reboot without writing if the disabling is already staged for next boot", func() {
+			attrs := &MlxNic{TotalVfs: -1}
+			needReboot, changeWithoutReboot := HandlePfNumOfVfValid(
+				&MlxNic{PfNumOfVfValid: ptr.To(true)}, &MlxNic{PfNumOfVfValid: ptr.To(false)}, attrs)
+			Expect(needReboot).To(BeTrue())
+			Expect(changeWithoutReboot).To(BeFalse())
+			Expect(attrs.PfNumOfVfValid).To(BeNil())
+		})
+		It("should disable the override without reboot if the enabling is only pending for next boot", func() {
+			attrs := &MlxNic{TotalVfs: -1}
+			needReboot, changeWithoutReboot := HandlePfNumOfVfValid(
+				&MlxNic{PfNumOfVfValid: ptr.To(false)}, &MlxNic{PfNumOfVfValid: ptr.To(true)}, attrs)
+			Expect(needReboot).To(BeFalse())
+			Expect(changeWithoutReboot).To(BeTrue())
+			Expect(attrs.PfNumOfVfValid).To(Equal(ptr.To(false)))
+		})
+		It("should do nothing if the override is disabled", func() {
+			attrs := &MlxNic{TotalVfs: -1}
+			needReboot, changeWithoutReboot := HandlePfNumOfVfValid(
+				&MlxNic{PfNumOfVfValid: ptr.To(false)}, &MlxNic{PfNumOfVfValid: ptr.To(false)}, attrs)
+			Expect(needReboot).To(BeFalse())
+			Expect(changeWithoutReboot).To(BeFalse())
+			Expect(attrs.PfNumOfVfValid).To(BeNil())
+		})
+		It("should do nothing if the firmware doesn't expose the parameter", func() {
+			attrs := &MlxNic{TotalVfs: -1}
+			needReboot, changeWithoutReboot := HandlePfNumOfVfValid(&MlxNic{}, &MlxNic{}, attrs)
+			Expect(needReboot).To(BeFalse())
+			Expect(changeWithoutReboot).To(BeFalse())
+			Expect(attrs.PfNumOfVfValid).To(BeNil())
 		})
 	})
 
@@ -790,6 +938,22 @@ The '*' shows parameters with next value different from default/current value.`
 	}
 
 	return fmt.Sprintf(mstconfigOutput, "", numOfVfsCurrent, numofVfsNextBoot, sriovEnableDefault, sriovEnableCurrent, sriovEnableNextBoot)
+}
+
+var pfNumOfVfValidLine = regexp.MustCompile(`(?m)^.*PF_NUM_OF_VF_VALID.*$`)
+
+// withPfNumOfVfOverride sets PF_NUM_OF_VF_VALID current and next values and adds PF_NUM_OF_VF after it,
+// to make sure the parser doesn't confuse the two attributes
+func withPfNumOfVfOverride(mstconfigOutput, validCurrent, validNext string, pfNumOfVf int) string {
+	lines := fmt.Sprintf(`*       PF_NUM_OF_VF_VALID                          False(0)             %s              %s
+*       PF_NUM_OF_VF                                0                    %d                    %d`,
+		validCurrent, validNext, pfNumOfVf, pfNumOfVf)
+	return pfNumOfVfValidLine.ReplaceAllLiteralString(mstconfigOutput, lines)
+}
+
+// withoutPfNumOfVfOverride simulates an older firmware that doesn't expose PF_NUM_OF_VF_VALID
+func withoutPfNumOfVfOverride(mstconfigOutput string) string {
+	return pfNumOfVfValidLine.ReplaceAllLiteralString(mstconfigOutput, "")
 }
 
 func getBFMstconfigOutput(DPUMode, unExpected bool) string {
